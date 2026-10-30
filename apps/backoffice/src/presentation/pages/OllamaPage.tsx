@@ -366,7 +366,7 @@ function Roles() {
                     value={role.params.maxTokens}
                     onChange={(maxTokens) => patchParams(index, { maxTokens })}
                   />
-                  <Field label="keep_alive">
+                  <Field label="keep_alive" hint="Ex. : 30m, ou -1 pour le garder en mémoire">
                     <Input
                       placeholder="5m"
                       value={role.params.keepAlive ?? ''}

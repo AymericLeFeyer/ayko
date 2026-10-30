@@ -9,6 +9,7 @@ const MODEL_LOAD_MS = 400;
 describe('OllamaProvider timeouts', () => {
   let server: Server;
   let url: string;
+  let lastBody: Record<string, unknown> = {};
 
   beforeAll(async () => {
     // Like Ollama: no response headers at all until the model is loaded.
@@ -17,6 +18,13 @@ describe('OllamaProvider timeouts', () => {
         response.end(JSON.stringify({ version: 'test' }));
         return;
       }
+      let body = '';
+      request.on('data', (chunk: Buffer) => {
+        body += chunk.toString();
+      });
+      request.on('end', () => {
+        lastBody = JSON.parse(body) as Record<string, unknown>;
+      });
       setTimeout(() => {
         response.write(`${JSON.stringify({ message: { content: 'Bonjour' } })}\n`);
         response.end(`${JSON.stringify({ done: true, eval_count: 1, eval_duration: 1000 })}\n`);
@@ -42,6 +50,21 @@ describe('OllamaProvider timeouts', () => {
       if (chunk.type === 'text') text.push(chunk.text);
     }
     expect(text.join('')).toBe('Bonjour');
+  });
+
+  it.each([
+    ['-1', -1],
+    ['0', 0],
+    ['30m', '30m'],
+  ])('sends keep_alive %s in the form Ollama accepts', async (keepAlive, expected) => {
+    const provider = new OllamaProvider({
+      url,
+      headers: {},
+      connectTimeoutMs: CONNECT_TIMEOUT_MS,
+    });
+    const chat = provider.chat({ model: 'slow', messages: [], params: { keepAlive } });
+    for await (const _chunk of chat);
+    expect(lastBody.keep_alive).toBe(expected);
   });
 
   it('still fails fast on a server that cannot be reached', async () => {

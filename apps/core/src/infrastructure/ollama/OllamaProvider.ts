@@ -50,6 +50,9 @@ const toWireMessage = (message: LlmMessage) => ({
     : {}),
 });
 
+/** Ollama reads a string as a Go duration, so a bare `-1` must travel as a number. */
+const toKeepAlive = (value: string) => (/^-?\d+$/.test(value.trim()) ? Number(value) : value);
+
 export class OllamaProvider implements LlmProvider {
   constructor(private readonly config: LlmEndpointConfig) {}
 
@@ -225,7 +228,7 @@ export class OllamaProvider implements LlmProvider {
               })),
             }
           : {}),
-        ...(params?.keepAlive != null ? { keep_alive: params.keepAlive } : {}),
+        ...(params?.keepAlive != null ? { keep_alive: toKeepAlive(params.keepAlive) } : {}),
         options,
       }),
     });
