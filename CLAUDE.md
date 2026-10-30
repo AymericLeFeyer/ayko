@@ -66,6 +66,7 @@ Design system : shadcn/ui uniquement, couleurs en variables dans `presentation/s
 - Windows : une commande Bash trop longue échoue (`ENAMETOOLONG`). Écrire les fichiers avec l'outil dédié.
 - `bash` seul lance WSL dans `launch.json` ; utiliser le chemin de Git Bash.
 - `contracts` se compile : relancer `npm run build -w @ayko/contracts` après modification, sinon Core et le backoffice voient l'ancienne version.
+- Windows : `tsx watch` reste muet et ne démarre jamais sous `concurrently`. Core utilise `node --watch --import tsx`.
 - Migrations : `apps/core/drizzle` est committé et embarqué dans l'image Docker.
 - Noms de modèles avec `:` ou `/` : routes en wildcard `/ollama/models/*`.
 - Le faux Ollama et le faux MCP sont de vrais serveurs : les tests couvrent le chemin de production, mais jamais un vrai modèle.
