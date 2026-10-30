@@ -1,9 +1,4 @@
-import type {
-  OllamaModel,
-  OllamaModelDetail,
-  PullProgress,
-  RunningModel,
-} from '@ayko/contracts';
+import type { OllamaModel, OllamaModelDetail, PullProgress, RunningModel } from '@ayko/contracts';
 import type {
   LlmChatRequest,
   LlmChunk,

@@ -80,7 +80,10 @@ server.registerPrompt(
   { description: 'Résume la maison', argsSchema: { piece: z.string().optional() } },
   ({ piece }) => ({
     messages: [
-      { role: 'user', content: { type: 'text', text: `Fais le bilan de ${piece ?? 'la maison'}.` } },
+      {
+        role: 'user',
+        content: { type: 'text', text: `Fais le bilan de ${piece ?? 'la maison'}.` },
+      },
     ],
   }),
 );

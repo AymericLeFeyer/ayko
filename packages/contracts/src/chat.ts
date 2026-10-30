@@ -22,14 +22,7 @@ export type StepKind = z.infer<typeof stepKind>;
 export const stepStatus = z.enum(['running', 'done', 'error', 'cancelled']);
 export type StepStatus = z.infer<typeof stepStatus>;
 
-export const screenState = z.enum([
-  'idle',
-  'awake',
-  'listening',
-  'thinking',
-  'answering',
-  'error',
-]);
+export const screenState = z.enum(['idle', 'awake', 'listening', 'thinking', 'answering', 'error']);
 export type ScreenState = z.infer<typeof screenState>;
 
 export const answerStats = z.object({

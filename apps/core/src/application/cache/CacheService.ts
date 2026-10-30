@@ -262,7 +262,10 @@ export class CacheService {
       aliases: existing?.aliases ?? [],
       aliasKeys: existing?.aliasKeys ?? [],
       // A doubtful entry keeps its failure count: only a successful replay clears it.
-      status: existing?.status === 'pinned' || existing?.status === 'doubtful' ? existing.status : 'active',
+      status:
+        existing?.status === 'pinned' || existing?.status === 'doubtful'
+          ? existing.status
+          : 'active',
       hits: existing?.hits ?? 0,
       failures: existing?.status === 'doubtful' ? existing.failures : 0,
       occurrences: (existing?.occurrences ?? 0) + 1,

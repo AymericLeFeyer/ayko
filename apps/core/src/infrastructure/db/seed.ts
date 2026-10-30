@@ -72,11 +72,19 @@ export async function seedDemo(
     connectTimeoutMs: 3000,
   });
   await ollama.saveRoles([
-    { role: 'conversation', model: 'mock-llama:latest', params: modelParams.parse({ numCtx: 4096 }) },
+    {
+      role: 'conversation',
+      model: 'mock-llama:latest',
+      params: modelParams.parse({ numCtx: 4096 }),
+    },
     { role: 'routing', model: 'mock-tiny:latest', params: modelParams.parse({}) },
     { role: 'embeddings', model: 'mock-embed:latest', params: modelParams.parse({}) },
   ]);
-  await rooms.createRoom({ name: 'Salon', icon: 'sofa', config: { suggestions: ['Allume le salon'] } });
+  await rooms.createRoom({
+    name: 'Salon',
+    icon: 'sofa',
+    config: { suggestions: ['Allume le salon'] },
+  });
   await rooms.createRoom({ name: 'Chambre', icon: 'bed' });
   await rooms.createRoom({ name: 'Entrée', icon: 'door-open' });
   await registry.createServer({

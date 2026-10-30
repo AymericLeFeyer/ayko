@@ -40,7 +40,10 @@ export async function buildServer(container: Container) {
       },
     },
   });
-  await app.register(cors, { origin: env.corsOrigins.length > 0 ? env.corsOrigins : false, credentials: true });
+  await app.register(cors, {
+    origin: env.corsOrigins.length > 0 ? env.corsOrigins : false,
+    credentials: true,
+  });
   await app.register(rateLimit, { global: false });
   await app.register(websocket);
 
@@ -121,7 +124,9 @@ export async function buildServer(container: Container) {
     await app.register(fastifyStatic, { root: resolve(env.backofficeDir), wildcard: false });
     app.setNotFoundHandler((request, reply) => {
       const isSpaRoute =
-        request.method === 'GET' && !/^\/(api|ws)\//.test(request.url) && !request.url.includes('.');
+        request.method === 'GET' &&
+        !/^\/(api|ws)\//.test(request.url) &&
+        !request.url.includes('.');
       if (isSpaRoute) return reply.sendFile('index.html');
       return reply.status(404).send({ code: 'not_found', message: 'Route introuvable' });
     });

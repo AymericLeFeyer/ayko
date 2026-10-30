@@ -13,7 +13,9 @@ import { conversations, messages, requests, rooms, toolCalls, traceSteps } from 
 export class DrizzleConversationRepository implements ConversationRepository {
   constructor(private readonly db: Db) {}
 
-  async createConversation(conversation: Parameters<ConversationRepository['createConversation']>[0]) {
+  async createConversation(
+    conversation: Parameters<ConversationRepository['createConversation']>[0],
+  ) {
     this.db
       .insert(conversations)
       .values({ ...conversation, updatedAt: conversation.createdAt })
@@ -69,7 +71,9 @@ export class DrizzleConversationRepository implements ConversationRepository {
           this.db
             .select({ id: messages.conversationId })
             .from(messages)
-            .where(and(like(messages.content, pattern), eq(messages.conversationId, conversations.id)))
+            .where(
+              and(like(messages.content, pattern), eq(messages.conversationId, conversations.id)),
+            )
             .limit(1),
         ),
       );

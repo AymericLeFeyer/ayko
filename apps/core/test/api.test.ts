@@ -290,14 +290,18 @@ describe('shortcut cache', () => {
     expect(trace.model).toBeNull();
     expect(trace.toolCalls).toMatchObject([{ toolName: 'light_turn_on', source: 'cache' }]);
     expect(answerOf(second)).toBe("C'est fait.");
-    expect(second.find((event) => event.type === 'activity.step' && event.kind === 'cache_hit')).toBeTruthy();
+    expect(
+      second.find((event) => event.type === 'activity.step' && event.kind === 'cache_hit'),
+    ).toBeTruthy();
   });
 
   it('isolates entries by room', async () => {
     const chambre = await h.room('Chambre');
     const entree = await h.room('Entrée');
     const events = await h.chat({ text: 'Allume la chambre', roomId: entree.id });
-    expect((await h.api<Trace>('GET', `/traces/${requestIdOf(events)}`)).cache.outcome).toBe('miss');
+    expect((await h.api<Trace>('GET', `/traces/${requestIdOf(events)}`)).cache.outcome).toBe(
+      'miss',
+    );
     const inChambre = await entries(chambre.id);
     const inEntree = await entries(entree.id);
     expect(inChambre).toHaveLength(1);
@@ -334,7 +338,7 @@ describe('shortcut cache', () => {
     expect(await entries()).toHaveLength(before);
   });
 
-  it('falls back on the LLM when a replay fails, then invalidates', async () => {
+  it('falls back on the LLM when a replay fails and marks the entry doubtful', async () => {
     const chambre = await h.room('Chambre');
     const [entry] = await entries(chambre.id);
     const unknownTool = {
@@ -349,12 +353,35 @@ describe('shortcut cache', () => {
     const trace = await h.api<Trace>('GET', `/traces/${requestIdOf(events)}`);
     expect(trace.cache.outcome).toBe('miss');
     expect((await entries(chambre.id))[0]?.status).toBe('doubtful');
+  });
 
-    for (let failure = 1; failure < 3; failure += 1) {
-      await h.api('PATCH', `/cache/entries/${entry?.id}`, { calls: [unknownTool] });
-      await h.chat({ text: 'Allume la chambre', roomId: chambre.id });
-      if (failure === 1) expect((await entries(chambre.id))[0]?.status).toBe('doubtful');
-    }
+  it('invalidates an entry once the failure limit is reached', async () => {
+    const chambre = await h.room('Chambre');
+    const [entry] = await entries(chambre.id);
+    const settings = await h.api<Record<string, unknown>>('GET', '/cache/settings');
+    await h.api('PUT', '/cache/settings', { ...settings, maxFailures: 1 });
+    await h.api('PATCH', `/cache/entries/${entry?.id}`, {
+      calls: [
+        {
+          toolId: '00000000-0000-4000-8000-000000000000',
+          serverId: '00000000-0000-4000-8000-000000000000',
+          toolName: 'gone',
+          arguments: {},
+        },
+      ],
+    });
+    const statuses: string[] = [];
+    h.container.bus.subscribe((event) => {
+      if (event.topic === 'cache.changed') statuses.push('changed');
+    });
+    const match = await h.container.cache.lookup('Allume la chambre', chambre.id);
+    await h.container.cache.recordFailure(match!.entry, 'test');
+    expect((await h.api<{ status: string }>('GET', `/cache/entries/${entry?.id}`)).status).toBe(
+      'invalidated',
+    );
+    expect(statuses).not.toHaveLength(0);
+    expect(await h.container.cache.lookup('Allume la chambre', chambre.id)).toBeNull();
+    await h.api('PUT', '/cache/settings', settings);
   });
 
   it('does not learn from a failed run', async () => {
@@ -421,7 +448,9 @@ describe('pairing and tablets', () => {
   const connect = (token: string) => {
     const socket = new WebSocket(`${h.baseUrl.replace('http', 'ws')}/ws/display?token=${token}`);
     const frames: DisplayServerMessage[] = [];
-    socket.on('message', (raw) => frames.push(displayServerMessage.parse(JSON.parse(raw.toString()))));
+    socket.on('message', (raw) =>
+      frames.push(displayServerMessage.parse(JSON.parse(raw.toString()))),
+    );
     return { socket, frames };
   };
   const until = async (check: () => boolean) => {
@@ -492,7 +521,10 @@ describe('voice and logs', () => {
   it('tests the fake providers shipped by default', async () => {
     const providers = await h.api<{ id: string; slot: string }[]>('GET', '/voice/providers');
     expect(providers.map((provider) => provider.slot).sort()).toEqual(['stt', 'tts', 'wake_word']);
-    const result = await h.api<{ ok: boolean }>('POST', `/voice/providers/${providers[0]?.id}/test`);
+    const result = await h.api<{ ok: boolean }>(
+      'POST',
+      `/voice/providers/${providers[0]?.id}/test`,
+    );
     expect(result.ok).toBe(true);
   });
 

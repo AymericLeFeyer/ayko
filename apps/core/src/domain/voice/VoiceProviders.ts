@@ -17,9 +17,7 @@ export interface WakeWordEngine extends VoiceEngine {
 }
 
 export interface SttEngine extends VoiceEngine {
-  transcribe(
-    audio: AsyncIterable<Uint8Array>,
-  ): AsyncIterable<{ text: string; final: boolean }>;
+  transcribe(audio: AsyncIterable<Uint8Array>): AsyncIterable<{ text: string; final: boolean }>;
 }
 
 export interface TtsEngine extends VoiceEngine {

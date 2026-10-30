@@ -19,7 +19,12 @@ interface WireTool {
 }
 
 const INITIAL_MODELS: FakeModel[] = [
-  { name: 'mock-llama:latest', size: 2_100_000_000, capabilities: ['completion', 'tools'], family: 'llama' },
+  {
+    name: 'mock-llama:latest',
+    size: 2_100_000_000,
+    capabilities: ['completion', 'tools'],
+    family: 'llama',
+  },
   { name: 'mock-tiny:latest', size: 400_000_000, capabilities: ['completion'], family: 'tiny' },
   { name: 'mock-embed:latest', size: 270_000_000, capabilities: ['embedding'], family: 'bert' },
 ];
@@ -178,7 +183,12 @@ export class FakeOllama {
       writeLine(response, { status: 'downloading', completed, total });
     }
     if (!this.models.some((item) => item.name === name)) {
-      this.models.push({ name, size: total, capabilities: ['completion', 'tools'], family: 'mock' });
+      this.models.push({
+        name,
+        size: total,
+        capabilities: ['completion', 'tools'],
+        family: 'mock',
+      });
     }
     writeLine(response, { status: 'success' });
     response.end();

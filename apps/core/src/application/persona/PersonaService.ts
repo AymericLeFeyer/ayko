@@ -1,10 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type {
-  Persona,
-  PersonaBody,
-  PersonaFields,
-  PersonaPreviewRequest,
-} from '@ayko/contracts';
+import type { Persona, PersonaBody, PersonaFields, PersonaPreviewRequest } from '@ayko/contracts';
 import { personaBody } from '@ayko/contracts';
 import type { PersonaRepository } from '../../domain/persona/repositories/PersonaRepository.js';
 import { renderPrompt, type PromptContext } from '../../domain/persona/services/renderPrompt.js';

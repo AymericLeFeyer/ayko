@@ -1,4 +1,18 @@
-import { and, avg, desc, eq, gte, inArray, isNotNull, like, lt, lte, or, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  avg,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  like,
+  lt,
+  lte,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import type { CacheSettings } from '@ayko/contracts';
 import type {
   CacheEntryFilter,
@@ -9,12 +23,7 @@ import type {
 } from '../../../domain/cache/repositories/CacheRepository.js';
 import type { Db } from '../client.js';
 import { encodeCursor } from '../pagination.js';
-import {
-  cacheSettingsTable,
-  mcpRequestHistory,
-  requestCacheEntries,
-  requests,
-} from '../schema.js';
+import { cacheSettingsTable, mcpRequestHistory, requestCacheEntries, requests } from '../schema.js';
 
 const LIVE: ('active' | 'pinned' | 'doubtful')[] = ['active', 'pinned', 'doubtful'];
 
@@ -30,11 +39,8 @@ export class DrizzleCacheRepository implements CacheRepository {
 
   async getSettings() {
     return (
-      this.db
-        .select()
-        .from(cacheSettingsTable)
-        .where(eq(cacheSettingsTable.id, 1))
-        .get()?.value ?? null
+      this.db.select().from(cacheSettingsTable).where(eq(cacheSettingsTable.id, 1)).get()?.value ??
+      null
     );
   }
 
@@ -48,8 +54,7 @@ export class DrizzleCacheRepository implements CacheRepository {
 
   async findEntry(id: string) {
     return (
-      this.db.select().from(requestCacheEntries).where(eq(requestCacheEntries.id, id)).get() ??
-      null
+      this.db.select().from(requestCacheEntries).where(eq(requestCacheEntries.id, id)).get() ?? null
     );
   }
 
@@ -94,7 +99,9 @@ export class DrizzleCacheRepository implements CacheRepository {
   }
 
   async deleteEntry(id: string) {
-    return this.db.delete(requestCacheEntries).where(eq(requestCacheEntries.id, id)).run().changes > 0;
+    return (
+      this.db.delete(requestCacheEntries).where(eq(requestCacheEntries.id, id)).run().changes > 0
+    );
   }
 
   async listEntries(filter: CacheEntryFilter) {
@@ -177,11 +184,7 @@ export class DrizzleCacheRepository implements CacheRepository {
   }
 
   async findHistory(id: string) {
-    const row = this.db
-      .select()
-      .from(mcpRequestHistory)
-      .where(eq(mcpRequestHistory.id, id))
-      .get();
+    const row = this.db.select().from(mcpRequestHistory).where(eq(mcpRequestHistory.id, id)).get();
     return row ? toHistory(row) : null;
   }
 

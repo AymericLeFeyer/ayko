@@ -28,7 +28,5 @@ export interface SystemRepository {
   recentErrors(limit: number): Promise<LogEntry[]>;
   purge(cutoffs: { logs: string; traces: string }): Promise<void>;
   exportTables(includeSecrets: boolean): Promise<Record<string, Record<string, unknown>[]>>;
-  importTables(
-    tables: Record<string, Record<string, unknown>[]>,
-  ): Promise<Record<string, number>>;
+  importTables(tables: Record<string, Record<string, unknown>[]>): Promise<Record<string, number>>;
 }

@@ -18,7 +18,8 @@ export function structuredToolPrompt(tools: LlmTool[]): string {
 }
 
 /** True while the buffered output may still turn out to be a JSON tool call. */
-export const mayBeStructuredCall = (text: string): boolean => /^\s*(`{1,3}(json)?\s*)?\{?\s*$|^\s*(```(json)?\s*)?\{/.test(text);
+export const mayBeStructuredCall = (text: string): boolean =>
+  /^\s*(`{1,3}(json)?\s*)?\{?\s*$|^\s*(```(json)?\s*)?\{/.test(text);
 
 export function parseStructuredCall(text: string, tools: LlmTool[]): LlmToolCall | null {
   const match = /\{[\s\S]*\}/.exec(text);

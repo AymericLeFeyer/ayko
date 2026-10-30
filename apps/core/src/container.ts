@@ -116,10 +116,7 @@ export async function createContainer(env: Env, overrides: ContainerOverrides = 
   rooms.bindInvalidation((roomId) => cache.invalidateRoom(roomId));
   personas.bind({
     context: async (roomId, user) => {
-      const [room, { ownerName }] = await Promise.all([
-        rooms.describeRoom(roomId),
-        settings.get(),
-      ]);
+      const [room, { ownerName }] = await Promise.all([rooms.describeRoom(roomId), settings.get()]);
       return {
         now: new Date(),
         roomName: room.name,

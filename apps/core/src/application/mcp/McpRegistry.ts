@@ -83,7 +83,13 @@ export class McpRegistry {
   private state(id: string): Runtime {
     let state = this.runtime.get(id);
     if (!state) {
-      state = { status: 'disabled', lastError: null, latencyMs: null, connection: null, generation: 0 };
+      state = {
+        status: 'disabled',
+        lastError: null,
+        latencyMs: null,
+        connection: null,
+        generation: 0,
+      };
       this.runtime.set(id, state);
     }
     return state;

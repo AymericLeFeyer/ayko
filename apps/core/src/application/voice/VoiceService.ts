@@ -1,9 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { VoiceProvider, VoiceProvidersUpdate, VoiceTestResult } from '@ayko/contracts';
-import type {
-  VoiceEngineFactory,
-  VoiceRepository,
-} from '../../domain/voice/VoiceProviders.js';
+import type { VoiceEngineFactory, VoiceRepository } from '../../domain/voice/VoiceProviders.js';
 import { AppError, notFound } from '../../shared/errors.js';
 
 export class VoiceService {

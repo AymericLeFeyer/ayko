@@ -299,7 +299,11 @@ export class AgentService {
     const policy = this.registry.policyFor(tool, run.roomId);
     if (policy === 'forbidden') {
       run.anyToolFailed = true;
-      return { text: 'Outil interdit par la politique de la maison.', isError: true, declined: false };
+      return {
+        text: 'Outil interdit par la politique de la maison.',
+        isError: true,
+        declined: false,
+      };
     }
     if (policy === 'confirm') {
       const accepted = await this.askConfirmation(run, `Autoriser « ${tool.name} » ?`);
@@ -309,7 +313,9 @@ export class AgentService {
       }
     }
     const { agent } = await this.settings.get();
-    const step = await this.startStep(run, 'tool_call', `Appel de ${tool.name}`, { arguments: args });
+    const step = await this.startStep(run, 'tool_call', `Appel de ${tool.name}`, {
+      arguments: args,
+    });
     const result = await this.registry.call(tool, args, {
       requestId: run.requestId,
       roomId: run.roomId,
@@ -442,13 +448,16 @@ export class AgentService {
       `Appareils de la pièce : ${rendered.variables.devices}`,
     ].join('\n');
 
-    const exposed = (await this.routeNeedsTools(run)) ? await this.registry.toolsFor(run.roomId) : [];
+    const exposed = (await this.routeNeedsTools(run))
+      ? await this.registry.toolsFor(run.roomId)
+      : [];
     const tools: LlmTool[] = exposed.map((item) => ({
       name: item.exposedName,
       description: item.description,
       parameters: item.tool.inputSchema,
     }));
-    const native = tools.length > 0 ? await this.ollama.supportsTools(model).catch(() => true) : true;
+    const native =
+      tools.length > 0 ? await this.ollama.supportsTools(model).catch(() => true) : true;
 
     const systemPrompt = [
       params.systemPrompt,
@@ -488,7 +497,11 @@ export class AgentService {
       });
       await step.finish('done', { iteration, toolCalls });
       if (toolCalls.length === 0) return text;
-      messages.push({ role: 'assistant', content: text, toolCalls: native ? toolCalls : undefined });
+      messages.push({
+        role: 'assistant',
+        content: text,
+        toolCalls: native ? toolCalls : undefined,
+      });
       const results = await Promise.all(
         toolCalls.map((call) => this.runToolCall(run, call, exposed, agent.toolResultMaxChars)),
       );
@@ -644,11 +657,7 @@ export class AgentService {
     const timedOut = reason instanceof AppError;
     const cancelled = !timedOut && (run.signal.aborted || isAbortError(error));
     const source = timedOut ? reason : error;
-    const code = cancelled
-      ? 'cancelled'
-      : source instanceof AppError
-        ? source.code
-        : 'agent_error';
+    const code = cancelled ? 'cancelled' : source instanceof AppError ? source.code : 'agent_error';
     const message = cancelled ? 'Requête annulée' : errorMessage(source);
     await this.conversations.updateRequest(run.requestId, {
       status: cancelled ? 'cancelled' : 'error',

@@ -9,7 +9,14 @@ export default tseslint.config(
   prettier,
   {
     rules: {
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true },
+      ],
     },
+  },
+  {
+    files: ['e2e/**/*.mjs', 'apps/core/mock/**/*.mjs'],
+    languageOptions: { globals: { process: 'readonly' } },
   },
 );

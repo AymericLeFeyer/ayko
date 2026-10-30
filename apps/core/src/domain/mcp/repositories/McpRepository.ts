@@ -54,10 +54,7 @@ export interface McpRepository {
   /** Refreshes what the server declares, leaving admin choices untouched. */
   updateToolDefinition(
     id: string,
-    definition: Pick<
-      McpToolRecord,
-      'description' | 'inputSchema' | 'schemaHash' | 'readOnly'
-    >,
+    definition: Pick<McpToolRecord, 'description' | 'inputSchema' | 'schemaHash' | 'readOnly'>,
   ): Promise<void>;
   updateToolPolicy(
     id: string,

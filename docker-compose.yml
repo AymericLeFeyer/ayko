@@ -1,0 +1,20 @@
+services:
+  core:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      AYKO_MASTER_KEY: ${AYKO_MASTER_KEY:-}
+      AYKO_MOCK: ${AYKO_MOCK:-false}
+      AYKO_PUBLIC_URL: ${AYKO_PUBLIC_URL:-http://localhost:3100}
+      AYKO_LOG_LEVEL: ${AYKO_LOG_LEVEL:-info}
+    ports:
+      - '3100:3100'
+    volumes:
+      - ayko-data:/data
+    stop_grace_period: 15s
+
+volumes:
+  ayko-data:

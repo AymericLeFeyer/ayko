@@ -15,10 +15,7 @@ import type {
   LlmProvider,
   LlmProviderFactory,
 } from '../../domain/llm/LlmProvider.js';
-import type {
-  EndpointRecord,
-  LlmRepository,
-} from '../../domain/llm/repositories/LlmRepository.js';
+import type { EndpointRecord, LlmRepository } from '../../domain/llm/repositories/LlmRepository.js';
 import type { Logger } from '../../domain/system/Logger.js';
 import type { Vault } from '../../domain/system/Vault.js';
 import { AppError, errorMessage, notFound } from '../../shared/errors.js';

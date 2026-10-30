@@ -14,7 +14,10 @@ export interface Harness {
   baseUrl: string;
   api<T = unknown>(method: string, path: string, payload?: unknown): Promise<T>;
   status(method: string, path: string, payload?: unknown): Promise<number>;
-  chat(payload: Record<string, unknown>, onEvent?: (event: AgentEvent) => void): Promise<AgentEvent[]>;
+  chat(
+    payload: Record<string, unknown>,
+    onEvent?: (event: AgentEvent) => void,
+  ): Promise<AgentEvent[]>;
   room(name: string): Promise<Room>;
   close(): Promise<void>;
 }

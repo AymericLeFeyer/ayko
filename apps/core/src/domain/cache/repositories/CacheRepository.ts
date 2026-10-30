@@ -41,17 +41,9 @@ export interface CacheRepository {
     record: Omit<HistoryRecord, 'avgDurationMs' | 'occurrences'> & { durationMs: number },
   ): Promise<HistoryRecord>;
   findHistory(id: string): Promise<HistoryRecord | null>;
-  listHistory(
-    filter: HistoryFilter,
-    limit: number,
-    cursor?: string,
-  ): Promise<Page<HistoryRecord>>;
+  listHistory(filter: HistoryFilter, limit: number, cursor?: string): Promise<Page<HistoryRecord>>;
   linkHistory(groupKey: string, entryId: string): Promise<void>;
-  clearHistory(filter: {
-    roomId?: string;
-    toolId?: string;
-    serverId?: string;
-  }): Promise<number>;
+  clearHistory(filter: { roomId?: string; toolId?: string; serverId?: string }): Promise<number>;
   purgeHistory(cutoffIso: string): Promise<void>;
   /** Average time saved by hits compared to the LLM run that taught the entry. */
   averageSavedMs(): Promise<number | null>;
