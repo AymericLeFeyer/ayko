@@ -26,7 +26,7 @@ infrastructure / presentation`. The backoffice holds no business rule, so entiti
 only contains real orchestration (the playground stream). Wrapping about a hundred one-line calls
 in use-case classes and repository interfaces would add code with no behaviour.
 
-**Backoffice served by Core**, one image instead of two. The specification allows it, and a second
+**Backoffice served by Core**, two images (`core`, `display`) instead of three. The specification allows it, and a second
 web server would only cost memory on modest hardware. The Docker image still builds it separately.
 
 **Mock mode uses real protocols.** The fake Ollama is an HTTP server speaking the Ollama API; the
@@ -90,6 +90,28 @@ regardless of the frequency threshold.
 
 **Cursor pagination, except history sorted by occurrences**, which uses an opaque offset cursor:
 occurrence counts change between requests, so there is no stable key to page on.
+
+## Display
+
+**No shadcn/ui and no TanStack Query in Display.** It is a kiosk with its own full-screen visual
+language and a single data stream; it would use neither. Spec section 3 recommends them for both
+apps; the backoffice keeps them.
+
+**The Display server has no dependency** and proxies an allowlist of tablet routes. The admin API
+cannot be reached through it, and it uses about 66 MB of memory.
+
+**Rich blocks travel in the MCP `structuredContent.blocks` field.** It is a standard field, so a
+server without the convention keeps working in plain text. Blocks are shown as they arrive, next to
+the model's answer.
+
+**Widgets run a read-only tool chosen per room**, in `auto` policy only, cached 60 seconds: the home
+screen runs unattended, so it can never reach a tool that changes something.
+
+**The conversation of a tablet is lost when it goes home**, which is the idle behaviour the spec
+describes. An answer in flight during a disconnection is reported as interrupted, not resumed.
+
+**Steps and confirmations show the tool description**, which the admin can rewrite, because
+`lock_door` means nothing to the family.
 
 ## Security
 

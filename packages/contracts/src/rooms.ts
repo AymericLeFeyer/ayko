@@ -11,6 +11,20 @@ export const roomConfig = z.object({
   suggestions: z.array(z.string()).default([]),
   nightBrightness: z.number().int().min(0).max(100).default(30),
   idleTimeoutSeconds: z.number().int().min(5).default(60),
+  nightStart: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/)
+    .default('22:00'),
+  nightEnd: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/)
+    .default('07:00'),
+  /** Turns costly effects off on old tablets. */
+  lightMode: z.boolean().default(false),
+  /** Dedicated tablet: live feed of the whole house instead of a conversation. */
+  dashboardMode: z.boolean().default(false),
+  /** Read-only tool feeding each home widget. */
+  widgetTools: z.partialRecord(homeWidget, uuid).default({}),
 });
 export type RoomConfig = z.infer<typeof roomConfig>;
 

@@ -32,7 +32,7 @@ export interface NewToolCall {
   result: string | null;
   isError: boolean;
   durationMs: number;
-  source: 'llm' | 'cache' | 'tester';
+  source: 'llm' | 'cache' | 'tester' | 'widget';
   createdAt: string;
 }
 

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { isoDate, uuid } from './common.js';
-import { answerStats, block, screenState, stepKind, stepStatus } from './chat.js';
+import { answerStats, block, requestStatus, screenState, stepKind, stepStatus } from './chat.js';
 import { deviceCommand, roomConfig } from './rooms.js';
 import { logEntry } from './system.js';
 
@@ -13,6 +13,14 @@ const envelope = {
 
 const frame = <T extends string, P extends z.ZodType>(type: T, payload: P) =>
   z.object({ ...envelope, type: z.literal(type), payload });
+
+export const houseActivity = z.object({
+  requestId: uuid,
+  roomName: z.string().nullable(),
+  text: z.string(),
+  status: requestStatus,
+});
+export type HouseActivity = z.infer<typeof houseActivity>;
 
 export const displayClientMessage = z.discriminatedUnion('type', [
   frame('user.text', z.object({ text: z.string().min(1), sessionId: uuid.optional() })),
@@ -48,6 +56,8 @@ export const displayServerMessage = z.discriminatedUnion('type', [
   ),
   /** Extension of the spec: remote actions of section 4.6 need a server-to-tablet frame. */
   frame('device.command', deviceCommand),
+  /** Sent to tablets in dashboard mode only. */
+  frame('house.activity', houseActivity),
   /** Reserved voice frames, typed now so the Display never has to change shape. */
   frame('voice.wake', z.object({ word: z.string() })),
   frame('voice.stt.partial', z.object({ text: z.string() })),
@@ -65,6 +75,7 @@ export const adminEvent = z.discriminatedUnion('topic', [
   z.object({ topic: z.literal('pairing.changed') }),
   z.object({ topic: z.literal('cache.changed') }),
   z.object({ topic: z.literal('request.changed'), requestId: uuid }),
+  z.object({ topic: z.literal('house.activity'), ...houseActivity.shape }),
   z.object({ topic: z.literal('log'), entry: logEntry }),
 ]);
 export type AdminEvent = z.infer<typeof adminEvent>;

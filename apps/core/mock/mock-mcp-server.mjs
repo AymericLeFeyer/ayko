@@ -6,6 +6,7 @@ import { z } from 'zod';
 const server = new McpServer({ name: 'mock-home', version: '0.1.0' });
 const lights = new Map();
 const text = (value) => ({ content: [{ type: 'text', text: value }] });
+const withBlocks = (value, blocks) => ({ ...text(value), structuredContent: { blocks } });
 
 server.registerTool(
   'light_turn_on',
@@ -15,7 +16,14 @@ server.registerTool(
   },
   async ({ room }) => {
     lights.set(room, true);
-    return text(`Lumière ${room} allumée.`);
+    return withBlocks(`Lumière ${room} allumée.`, [
+      {
+        type: 'entity',
+        name: `Lumière ${room}`,
+        state: 'Allumée',
+        action: { label: 'Éteindre', text: `Éteins la lumière du ${room}` },
+      },
+    ]);
   },
 );
 
@@ -27,7 +35,10 @@ server.registerTool(
   },
   async ({ room }) => {
     lights.set(room, false);
-    return text(`Lumière ${room} éteinte.`);
+    // An unknown block type on purpose: the Display must show it as text, not break.
+    return withBlocks(`Lumière ${room} éteinte.`, [
+      { type: 'hologram', text: `Bloc inconnu : ${room} dans le noir` },
+    ]);
   },
 );
 
@@ -57,7 +68,37 @@ server.registerTool(
     inputSchema: {},
     annotations: { readOnlyHint: true },
   },
-  async () => text('Dentiste à 14 h, réunion parents-profs à 18 h.'),
+  async () =>
+    withBlocks('Dentiste à 14 h, réunion parents-profs à 18 h.', [
+      {
+        type: 'calendar_events',
+        events: [
+          { title: 'Dentiste', start: '14:00', location: 'Cabinet', color: '#3f9d6e' },
+          { title: 'Réunion parents-profs', start: '18:00', color: '#e2a03f' },
+        ],
+      },
+    ]),
+);
+
+server.registerTool(
+  'get_weather',
+  {
+    description: 'Donne la météo actuelle et les prévisions',
+    inputSchema: {},
+    annotations: { readOnlyHint: true },
+  },
+  async () =>
+    withBlocks('Il fait 14 °C, ciel couvert.', [
+      {
+        type: 'weather',
+        temperature: 14,
+        condition: 'Couvert',
+        forecast: [
+          { label: 'Demain', temperature: 16, condition: 'Soleil' },
+          { label: 'Après-demain', temperature: 12, condition: 'Pluie' },
+        ],
+      },
+    ]),
 );
 
 server.registerTool(

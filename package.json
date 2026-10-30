@@ -11,9 +11,9 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "npm run build -w @ayko/contracts && concurrently --kill-others-on-fail -n core,bo -c cyan,magenta \"npm run dev -w @ayko/core\" \"npm run dev -w @ayko/backoffice\"",
-    "dev:mock": "npm run build -w @ayko/contracts && cross-env AYKO_MOCK=true concurrently --kill-others-on-fail -n core,bo -c cyan,magenta \"npm run dev -w @ayko/core\" \"npm run dev -w @ayko/backoffice\"",
-    "build": "npm run build -w @ayko/contracts && npm run build -w @ayko/core && npm run build -w @ayko/backoffice",
+    "dev": "npm run build -w @ayko/contracts && concurrently --kill-others-on-fail -n core,bo,tab -c cyan,magenta,yellow \"npm run dev -w @ayko/core\" \"npm run dev -w @ayko/backoffice\" \"npm run dev -w @ayko/display\"",
+    "dev:mock": "npm run build -w @ayko/contracts && cross-env AYKO_MOCK=true concurrently --kill-others-on-fail -n core,bo,tab -c cyan,magenta,yellow \"npm run dev -w @ayko/core\" \"npm run dev -w @ayko/backoffice\" \"npm run dev -w @ayko/display\"",
+    "build": "npm run build -w @ayko/contracts && npm run build -w @ayko/core && npm run build -w @ayko/backoffice && npm run build -w @ayko/display",
     "typecheck": "npm run build -w @ayko/contracts && npm run typecheck --workspaces --if-present",
     "test": "npm run build -w @ayko/contracts && vitest run",
     "test:e2e": "playwright test",

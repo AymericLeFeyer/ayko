@@ -32,6 +32,14 @@ UTC timestamps, UUID identifiers.
 
 `/health` also answers at the root, for container health checks.
 
+Device-token routes: `GET /device/config`, `GET /device/widgets`.
+
+## Rich blocks
+
+`knownBlock` in `packages/contracts/src/blocks.ts` lists them: `text`, `entity`, `entity_list`,
+`calendar_events`, `weather`, `list`, `table`, `image`, `confirm`, `progress`, `timer`, `error`. An
+MCP tool returns them in `structuredContent.blocks`. The Display shows an unknown block as raw text.
+
 ## Agent events
 
 `POST /chat` streams them as SSE; `/ws/display` carries them in the tablet envelope.
@@ -54,10 +62,10 @@ UTC timestamps, UUID identifiers.
 
 Authenticate with `?token=` or a bearer header. Frames are `{type, requestId?, room, ts, payload}`.
 
-| Direction     | Types                                                                                                                                                                          |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Tablet → Core | `user.text`, `request.cancel`, `confirm.answer`, `device.hello`, `device.heartbeat`, `audio.chunk` (ignored for now)                                                           |
-| Core → tablet | `state.changed`, `activity.step`, `answer.delta`, `answer.blocks`, `answer.done`, `confirm.request`, `config.updated`, `system.notice`, `device.command`, `voice.*` (reserved) |
+| Direction     | Types                                                                                                                                                                                            |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Tablet → Core | `user.text`, `request.cancel`, `confirm.answer`, `device.hello`, `device.heartbeat`, `audio.chunk` (ignored for now)                                                                             |
+| Core → tablet | `state.changed`, `activity.step`, `answer.delta`, `answer.blocks`, `answer.done`, `confirm.request`, `config.updated`, `system.notice`, `device.command`, `house.activity`, `voice.*` (reserved) |
 
 A tablet can only cancel its own requests and answer its own confirmations.
 

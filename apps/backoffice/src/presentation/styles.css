@@ -110,6 +110,13 @@
   h3 {
     @apply font-display;
   }
+  h1,
+  h2,
+  h3,
+  .font-display {
+    /* Bricolage's tabular figures turn slab-like. */
+    font-feature-settings: normal;
+  }
 }
 
 /* The status lights are the identity of the console: lit colours glow, off stays flat. */

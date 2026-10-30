@@ -255,7 +255,7 @@ export const toolCalls = sqliteTable(
     result: text('result'),
     isError: bool('is_error').notNull(),
     durationMs: real('duration_ms').notNull(),
-    source: text('source').$type<'llm' | 'cache' | 'tester'>().notNull(),
+    source: text('source').$type<'llm' | 'cache' | 'tester' | 'widget'>().notNull(),
     createdAt: text('created_at').notNull(),
   },
   (table) => [

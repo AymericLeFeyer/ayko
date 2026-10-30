@@ -10,7 +10,13 @@ import type { Container } from '../../../container.js';
 import { unauthorized } from '../../../shared/errors.js';
 import { body, param } from '../support.js';
 
-export function publicRoomRoutes(app: FastifyInstance, { rooms }: Container) {
+export function publicRoomRoutes(app: FastifyInstance, { rooms, widgets }: Container) {
+  const deviceFrom = async (authorization: string | undefined) => {
+    const device = await rooms.authenticateDevice(authorization?.replace(/^Bearer /, '') ?? '');
+    if (!device) throw unauthorized();
+    return device;
+  };
+
   app.post(
     '/pairing/request',
     { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
@@ -20,13 +26,16 @@ export function publicRoomRoutes(app: FastifyInstance, { rooms }: Container) {
 
   /** Device-token scope: a tablet can read its own configuration and nothing else. */
   app.get('/device/config', async (request) => {
-    const token = request.headers.authorization?.replace(/^Bearer /, '') ?? '';
-    const device = await rooms.authenticateDevice(token);
-    if (!device) throw unauthorized();
+    const device = await deviceFrom(request.headers.authorization);
     return {
       deviceId: device.id,
       room: device.roomId ? await rooms.getRoom(device.roomId) : null,
     };
+  });
+
+  app.get('/device/widgets', async (request) => {
+    const device = await deviceFrom(request.headers.authorization);
+    return widgets.forRoom(device.roomId);
   });
 }
 

@@ -124,7 +124,7 @@ export const toolCallLog = z.object({
   result: z.string().nullable(),
   isError: z.boolean(),
   durationMs: z.number(),
-  source: z.enum(['llm', 'cache', 'tester']),
+  source: z.enum(['llm', 'cache', 'tester', 'widget']),
   createdAt: isoDate,
 });
 export type ToolCallLog = z.infer<typeof toolCallLog>;

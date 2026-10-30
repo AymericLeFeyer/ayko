@@ -1,0 +1,12 @@
+{
+  "name": "Ayko",
+  "short_name": "Ayko",
+  "description": "L'assistant de la maison",
+  "lang": "fr",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0f1820",
+  "theme_color": "#0f1820",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

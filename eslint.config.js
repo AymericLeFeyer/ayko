@@ -16,7 +16,13 @@ export default tseslint.config(
     },
   },
   {
-    files: ['e2e/**/*.mjs', 'apps/core/mock/**/*.mjs'],
-    languageOptions: { globals: { process: 'readonly' } },
+    files: ['**/*.mjs'],
+    languageOptions: { globals: { process: 'readonly', console: 'readonly', URL: 'readonly' } },
+  },
+  {
+    files: ['apps/display/public/sw.js'],
+    languageOptions: {
+      globals: { self: 'readonly', caches: 'readonly', fetch: 'readonly', URL: 'readonly' },
+    },
   },
 );

@@ -10,6 +10,7 @@ const KEYS: Record<AdminEvent['topic'], string[][]> = {
   'cache.changed': [['cache']],
   'request.changed': [['metrics'], ['conversations'], ['history']],
   log: [['logs']],
+  'house.activity': [],
 };
 
 const THROTTLE_MS = 800;

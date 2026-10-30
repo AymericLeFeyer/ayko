@@ -7,6 +7,7 @@ import { McpRegistry } from './application/mcp/McpRegistry.js';
 import { PersonaService } from './application/persona/PersonaService.js';
 import { DeviceHub } from './application/rooms/DeviceHub.js';
 import { RoomService } from './application/rooms/RoomService.js';
+import { WidgetService } from './application/rooms/WidgetService.js';
 import { EventBus } from './application/system/EventBus.js';
 import { DbLogger, SettingsService } from './application/system/SettingsService.js';
 import { SystemService } from './application/system/SystemService.js';
@@ -70,6 +71,7 @@ export async function createContainer(env: Env, overrides: ContainerOverrides = 
   const hub = new DeviceHub(bus);
   const roomRepository = new DrizzleRoomRepository(db);
   const rooms = new RoomService(roomRepository, vault, hub, bus, logger);
+  const widgets = new WidgetService(rooms, registry, settings, logger);
   const personaRepository = new DrizzlePersonaRepository(db);
   const personas = new PersonaService(personaRepository);
   const cache = new CacheService(
@@ -156,6 +158,7 @@ export async function createContainer(env: Env, overrides: ContainerOverrides = 
     registry,
     hub,
     rooms,
+    widgets,
     personas,
     cache,
     agent,

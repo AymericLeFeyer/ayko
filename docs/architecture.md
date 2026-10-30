@@ -3,7 +3,7 @@
 ```
 Backoffice (React) ── REST + /ws/admin ──┐
                                          ▼
-Display (future) ──── /ws/display ──► Ayko Core ──► Ollama (HTTP)
+Display server ────── /ws/display ──► Ayko Core ──► Ollama (HTTP)
                                          │
                                          └────────► MCP servers (stdio, SSE, HTTP)
 ```
@@ -17,6 +17,7 @@ Display (future) ──── /ws/display ──► Ayko Core ──► Ollama (
 | `apps/backoffice`    | Admin interface, served by Core in production |
 | `apps/core/drizzle`  | Versioned SQL migrations, applied at startup  |
 | `apps/core/mock`     | Fake MCP server of mock mode                  |
+| `apps/display`       | Tablet PWA and its small Node server          |
 | `e2e`                | Playwright journey                            |
 
 ## Core layers

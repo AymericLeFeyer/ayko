@@ -10,6 +10,7 @@ import {
   structuredToolPrompt,
 } from '../../domain/llm/services/structuredTools.js';
 import type { McpToolRecord } from '../../domain/mcp/repositories/McpRepository.js';
+import { blocksFromResult } from '../../domain/mcp/services/toolBlocks.js';
 import { renderPrompt } from '../../domain/persona/services/renderPrompt.js';
 import type { Logger } from '../../domain/system/Logger.js';
 import { isAbortError, Semaphore } from '../../shared/async.js';
@@ -60,6 +61,9 @@ interface Run {
 }
 
 class ReplayFailure extends Error {}
+
+/** Shown to the family on tablets, so the admin's wording wins over the technical name. */
+const toolLabel = (tool: McpToolRecord) => tool.customDescription ?? tool.description ?? tool.name;
 
 export class AgentService {
   private readonly active = new Map<string, { controller: AbortController }>();
@@ -150,12 +154,25 @@ export class AgentService {
     emit({ type: 'request.accepted', requestId, conversationId });
     emit({ type: 'state.changed', requestId, state: 'thinking' });
     this.bus.publish({ topic: 'request.changed', requestId });
+    const { name: roomName } = await this.rooms.describeRoom(roomId);
+    const announce = (status: 'running' | 'done' | 'error' | 'cancelled') =>
+      this.bus.publish({
+        topic: 'house.activity',
+        requestId,
+        roomName,
+        text: input.text,
+        status,
+      });
+    announce('running');
 
     try {
       const outcome = await this.execute(run);
       await this.finish(run, outcome.answer, outcome.cacheHit);
+      announce('done');
     } catch (error) {
       await this.fail(run, error);
+      const cancelled = run.signal.aborted && !(run.signal.reason instanceof AppError);
+      announce(cancelled ? 'cancelled' : 'error');
     } finally {
       clearTimeout(timer);
       this.active.delete(requestId);
@@ -306,14 +323,14 @@ export class AgentService {
       };
     }
     if (policy === 'confirm') {
-      const accepted = await this.askConfirmation(run, `Autoriser « ${tool.name} » ?`);
+      const accepted = await this.askConfirmation(run, `Autoriser : ${toolLabel(tool)} ?`);
       if (!accepted) {
         run.anyToolFailed = true;
         return { text: "L'utilisateur a refusé cette action.", isError: true, declined: true };
       }
     }
     const { agent } = await this.settings.get();
-    const step = await this.startStep(run, 'tool_call', `Appel de ${tool.name}`, {
+    const step = await this.startStep(run, 'tool_call', toolLabel(tool), {
       arguments: args,
     });
     const result = await this.registry.call(tool, args, {
@@ -327,6 +344,8 @@ export class AgentService {
       arguments: args,
       result: result.text.slice(0, agent.toolResultMaxChars),
     });
+    const blocks = result.isError ? [] : blocksFromResult(result.raw);
+    if (blocks.length > 0) run.emit({ type: 'answer.blocks', requestId: run.requestId, blocks });
     if (result.isError) run.anyToolFailed = true;
     else run.calls.push({ tool, arguments: args, result: result.text });
     return { text: result.text, isError: result.isError, declined: false };

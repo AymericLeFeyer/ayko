@@ -2,8 +2,8 @@
 
 Dernière mise à jour : 2026-10-30
 
-IA domestique 100 % locale. Monorepo npm : `packages/contracts`, `apps/core`, `apps/backoffice`.
-Ayko Display (tablettes) n'est pas commencé. Cahier des charges résumé dans `README.md`, choix dans
+IA domestique 100 % locale. Monorepo npm : `packages/contracts`, `apps/core`, `apps/backoffice`, `apps/display`.
+`apps/display` : interface tablette. Cahier des charges résumé dans `README.md`, choix dans
 `DECISIONS.md`, API dans `docs/contracts.md`.
 
 Interface en français ; code, commentaires, API et commits en anglais.
@@ -53,6 +53,22 @@ Design system : shadcn/ui uniquement, couleurs en variables dans `presentation/s
 | `useAction`        | Mutation avec toast et invalidation               |
 | `usePlaygroundRun` | Orchestration du flux `/chat`                     |
 
+## Display (`apps/display`)
+
+Ports : 5174 en dev, 3200 en production. `server/server.mjs` : fichiers statiques et proxy à liste
+blanche, sans dépendance ni logique métier.
+
+| Élément               | Rôle                                                 |
+| --------------------- | ---------------------------------------------------- |
+| `domain/session.ts`   | Réducteur pur de l'écran, `isNight`                  |
+| `CoreSocket`          | WebSocket, heartbeat 15 s, reconnexion automatique   |
+| `useDevice`           | Appairage et configuration                           |
+| `useConversation`     | Session, retour à l'accueil, commandes à distance    |
+| `blocks/registry.tsx` | Un composant par type de bloc ; inconnu = texte brut |
+
+Côté Core : `WidgetService` (`GET /device/widgets`), `blocksFromResult`, frame `house.activity`.
+Réglages de pièce ajoutés : `nightStart`, `nightEnd`, `lightMode`, `dashboardMode`, `widgetTools`.
+
 ## Patterns
 
 - Écran de données : `QueryState` gère chargement, erreur et vide.
@@ -62,6 +78,11 @@ Design system : shadcn/ui uniquement, couleurs en variables dans `presentation/s
 - Toute exécution d'outil passe par `AgentService.executeTool`.
 
 ## Points d'attention
+
+- Ajouter un réglage dans `roomConfig` avec une valeur par défaut : les pièces existantes sont relues via `roomConfig.parse`.
+- `tnum` sur Bricolage Grotesque donne des chiffres à empattements : le désactiver sur les grands chiffres.
+- Wake Lock, service worker et installation PWA exigent HTTPS ou localhost.
+- MCP : aucune reconnexion automatique, volontairement (ban IP de Home Assistant après trois 401).
 
 - Windows : une commande Bash trop longue échoue (`ENAMETOOLONG`). Écrire les fichiers avec l'outil dédié.
 - `bash` seul lance WSL dans `launch.json` ; utiliser le chemin de Git Bash.

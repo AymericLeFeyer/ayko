@@ -27,16 +27,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t ayko-core .
-      - name: Start the image in mock mode and check /health
+      - run: docker build --target core -t ayko-core .
+      - run: docker build --target display -t ayko-display .
+      - name: Start both images in mock mode and check they answer
         run: |
-          docker run -d --name ayko -p 3100:3100 -e AYKO_MOCK=true ayko-core
+          docker network create ayko
+          docker run -d --name core --network ayko -p 3100:3100 -e AYKO_MOCK=true ayko-core
+          docker run -d --name display --network ayko -p 3200:3200 \
+            -e AYKO_CORE_URL=http://core:3100 ayko-display
           for attempt in $(seq 1 30); do
-            if curl -fs http://localhost:3100/health; then
+            if curl -fs http://localhost:3100/health && curl -fs http://localhost:3200/health; then
               curl -fs http://localhost:3100/ | grep -q '<div id="root">'
+              curl -fs http://localhost:3200/ | grep -q '<div id="root">'
+              curl -fs -X POST -H 'content-type: application/json' -d '{}' \
+                http://localhost:3200/api/v1/pairing/request | grep -q '"code"'
               exit 0
             fi
             sleep 1
           done
-          docker logs ayko
+          docker logs core
+          docker logs display
           exit 1

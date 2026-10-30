@@ -38,7 +38,7 @@ function toFrame(event: AgentEvent) {
       return {
         type: 'system.notice',
         requestId: event.requestId,
-        payload: { level: 'error', message: event.message },
+        payload: { level: event.code === 'cancelled' ? 'info' : 'error', message: event.message },
       };
     default:
       return null;
@@ -48,7 +48,7 @@ function toFrame(event: AgentEvent) {
 export function handleDisplaySocket(
   socket: WebSocket,
   device: DeviceRecord,
-  { agent, hub, rooms, logger }: Container,
+  { agent, bus, hub, rooms, logger }: Container,
 ) {
   const ownRequests = new Set<string>();
   const ownConfirmations = new Set<string>();
@@ -113,7 +113,16 @@ export function handleDisplaySocket(
     }
   });
 
+  const unsubscribe = bus.subscribe((event) => {
+    if (event.topic !== 'house.activity') return;
+    const { topic: _topic, ...payload } = event;
+    void rooms.describeRoom(device.roomId).then((room) => {
+      if (room.config?.dashboardMode) send({ type: 'house.activity', payload });
+    });
+  });
+
   socket.on('close', () => {
+    unsubscribe();
     hub.detach(device.id, socket);
     void rooms.touchDevice(device.id);
     logger.log('debug', 'display', `Tablette ${device.name} déconnectée`, {

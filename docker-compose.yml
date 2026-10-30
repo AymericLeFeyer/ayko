@@ -1,6 +1,8 @@
 services:
   core:
-    build: .
+    build:
+      context: .
+      target: core
     restart: unless-stopped
     env_file:
       - path: .env
@@ -15,6 +17,19 @@ services:
     volumes:
       - ayko-data:/data
     stop_grace_period: 15s
+
+  # Can run on another machine: point AYKO_CORE_URL at Core and start this service alone.
+  display:
+    build:
+      context: .
+      target: display
+    restart: unless-stopped
+    environment:
+      AYKO_CORE_URL: ${AYKO_CORE_URL:-http://core:3100}
+    ports:
+      - '3200:3200'
+    depends_on:
+      - core
 
 volumes:
   ayko-data:

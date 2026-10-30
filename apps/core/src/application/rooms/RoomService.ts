@@ -8,7 +8,6 @@ import {
   type PairingCreated,
   type PairingPoll,
   type Room,
-  type RoomConfig,
   type RoomInput,
 } from '@ayko/contracts';
 import type {
@@ -50,6 +49,8 @@ export class RoomService {
     const own = devices.filter((device) => device.roomId === record.id && !device.revoked);
     return {
       ...record,
+      // Rows written before a new setting existed get its default.
+      config: roomConfig.parse(record.config),
       deviceCount: own.length,
       onlineCount: own.filter((device) => this.hub.isOnline(device.id)).length,
     };
@@ -94,7 +95,7 @@ export class RoomService {
       name: input.name ?? current.name,
       slug: input.slug ?? current.slug,
       icon: input.icon ?? current.icon,
-      config: { ...current.config, ...input.config } as RoomConfig,
+      config: roomConfig.parse({ ...current.config, ...input.config }),
     };
     await this.repository.saveRoom(record);
     this.hub.broadcastRoom(id, { type: 'config.updated', payload: { roomConfig: record.config } });
@@ -112,7 +113,7 @@ export class RoomService {
     for (const room of await this.repository.listRooms()) {
       this.hub.broadcastRoom(room.id, {
         type: 'config.updated',
-        payload: { roomConfig: room.config },
+        payload: { roomConfig: roomConfig.parse(room.config) },
       });
     }
   }

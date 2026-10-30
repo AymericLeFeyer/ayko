@@ -76,7 +76,7 @@ test('the tool loop runs, then the shortcut replays without the LLM', async ({ p
 
   await ask(page, 'Allume la lumière du salon');
   await expect(page.getByText('Lumière salon allumée', { exact: false }).first()).toBeVisible();
-  await expect(page.getByText('Appel de light_turn_on')).toBeVisible();
+  await expect(page.getByText("Allume la lumière d'une pièce")).toBeVisible();
   await expect(page.getByText('Premier jeton')).toBeVisible();
 
   await ask(page, 'allumer la lumière du salon !');
@@ -96,7 +96,7 @@ test('a sensitive tool waits for confirmation', async ({ page }) => {
   await login(page);
   await page.getByRole('link', { name: 'Terrain de jeu', exact: true }).click();
   await ask(page, 'Verrouille la porte');
-  await expect(page.getByText('Autoriser « lock_door » ?').last()).toBeVisible();
+  await expect(page.getByText('Autoriser : Verrouille une porte ?').last()).toBeVisible();
   await page.getByRole('button', { name: 'Oui' }).click();
   await expect(page.getByText('verrouillée', { exact: false }).first()).toBeVisible();
 });

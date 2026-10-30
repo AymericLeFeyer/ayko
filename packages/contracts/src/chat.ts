@@ -129,7 +129,7 @@ export const traceToolCall = z.object({
   result: z.string().nullable(),
   isError: z.boolean(),
   durationMs: z.number(),
-  source: z.enum(['llm', 'cache', 'tester']),
+  source: z.enum(['llm', 'cache', 'tester', 'widget']),
 });
 export type TraceToolCall = z.infer<typeof traceToolCall>;
 

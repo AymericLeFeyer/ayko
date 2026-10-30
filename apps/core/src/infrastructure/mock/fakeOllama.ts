@@ -51,6 +51,9 @@ function decide(text: string, tools: WireTool[]) {
   if (/temp[ée]rature/.test(lower) && find('get_temperature')) {
     return { name: 'get_temperature', arguments: { room: room ?? 'salon' } };
   }
+  if (/m[ée]t[ée]o/.test(lower) && find('get_weather')) {
+    return { name: 'get_weather', arguments: {} };
+  }
   if (/agenda|rendez-vous|calendrier/.test(lower) && find('get_calendar_events')) {
     return { name: 'get_calendar_events', arguments: {} };
   }

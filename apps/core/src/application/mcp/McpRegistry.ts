@@ -41,7 +41,7 @@ export interface ExposedTool {
 export interface CallContext {
   requestId: string | null;
   roomId: string | null;
-  source: 'llm' | 'cache' | 'tester';
+  source: 'llm' | 'cache' | 'tester' | 'widget';
   timeoutMs: number;
   signal?: AbortSignal;
 }

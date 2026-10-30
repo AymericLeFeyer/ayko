@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import type { Device, HomeWidget, Persona, Room, RoomConfig } from '@ayko/contracts';
-import { personaApi, roomApi } from '@/infrastructure/api';
+import type { Device, HomeWidget, McpTool, Persona, Room, RoomConfig } from '@ayko/contracts';
+import { mcpApi, personaApi, roomApi } from '@/infrastructure/api';
 import {
   ConfirmButton,
   EmptyState,
@@ -45,6 +45,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/presentation/components/ui/table';
+import { Switch } from '@/presentation/components/ui/switch';
 import { Textarea } from '@/presentation/components/ui/textarea';
 import { useAction } from '@/presentation/hooks/useAction';
 import { formatDate } from '@/shared/format';
@@ -57,8 +58,14 @@ const WIDGETS: Record<HomeWidget, string> = {
   suggestions: 'Suggestions',
 };
 const DEFAULT = '__default';
+const WIDGET_SOURCES: HomeWidget[] = ['calendar', 'weather', 'home_state'];
 
-function RoomDialog(props: { room: Room | null; personas: Persona[]; onClose: () => void }) {
+function RoomDialog(props: {
+  room: Room | null;
+  personas: Persona[];
+  tools: McpTool[];
+  onClose: () => void;
+}) {
   const { room } = props;
   const [name, setName] = useState(room?.name ?? '');
   const [icon, setIcon] = useState(room?.icon ?? 'home');
@@ -166,7 +173,67 @@ function RoomDialog(props: { room: Room | null; personas: Persona[]; onClose: ()
               value={config.idleTimeoutSeconds ?? 60}
               onChange={(value) => patch({ idleTimeoutSeconds: value ?? 60 })}
             />
+            <Field label="Début de la nuit">
+              <Input
+                type="time"
+                value={config.nightStart ?? '22:00'}
+                onChange={(event) => patch({ nightStart: event.target.value })}
+              />
+            </Field>
+            <Field label="Fin de la nuit">
+              <Input
+                type="time"
+                value={config.nightEnd ?? '07:00'}
+                onChange={(event) => patch({ nightEnd: event.target.value })}
+              />
+            </Field>
           </div>
+          <label className="flex items-center gap-2 text-sm">
+            <Switch
+              checked={config.lightMode ?? false}
+              onCheckedChange={(lightMode) => patch({ lightMode })}
+            />
+            Mode léger, sans effets coûteux
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <Switch
+              checked={config.dashboardMode ?? false}
+              onCheckedChange={(dashboardMode) => patch({ dashboardMode })}
+            />
+            Tableau de bord : afficher l'activité de toute la maison
+          </label>
+          <Field group label="Sources des widgets" hint="Outils en lecture, en mode automatique.">
+            <div className="space-y-2">
+              {WIDGET_SOURCES.map((widget) => (
+                <div key={widget} className="flex items-center justify-between gap-2 text-sm">
+                  {WIDGETS[widget]}
+                  <Select
+                    value={config.widgetTools?.[widget] ?? DEFAULT}
+                    onValueChange={(value) => {
+                      const widgetTools = { ...config.widgetTools };
+                      if (value === DEFAULT) delete widgetTools[widget];
+                      else widgetTools[widget] = value;
+                      patch({ widgetTools });
+                    }}
+                  >
+                    <SelectTrigger aria-label={`Source ${WIDGETS[widget]}`} className="w-56">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={DEFAULT}>Aucune</SelectItem>
+                      {props.tools
+                        .filter((tool) => tool.readOnly)
+                        .map((tool) => (
+                          <SelectItem key={tool.id} value={tool.id}>
+                            {tool.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
+            </div>
+          </Field>
         </div>
         <DialogFooter>
           <Button disabled={!name || save.isPending} onClick={() => save.mutate()}>
@@ -332,6 +399,7 @@ export function RoomsPage() {
   const rooms = useQuery({ queryKey: ['rooms'], queryFn: roomApi.list });
   const devices = useQuery({ queryKey: ['devices'], queryFn: roomApi.devices });
   const personas = useQuery({ queryKey: ['personas'], queryFn: personaApi.list });
+  const tools = useQuery({ queryKey: ['mcp', 'tools'], queryFn: mcpApi.allTools });
   const [editing, setEditing] = useState<Room | 'new' | null>(null);
   const remove = useAction((id: string) => roomApi.remove(id), {
     success: 'Pièce supprimée',
@@ -431,6 +499,7 @@ export function RoomsPage() {
         <RoomDialog
           room={editing === 'new' ? null : editing}
           personas={personas.data ?? []}
+          tools={tools.data ?? []}
           onClose={() => setEditing(null)}
         />
       )}

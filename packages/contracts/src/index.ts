@@ -5,6 +5,7 @@ export * from './mcp.js';
 export * from './persona.js';
 export * from './rooms.js';
 export * from './chat.js';
+export * from './blocks.js';
 export * from './cache.js';
 export * from './voice.js';
 export * from './system.js';

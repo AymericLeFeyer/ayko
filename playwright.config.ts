@@ -5,10 +5,18 @@ export default defineConfig({
   timeout: 60_000,
   workers: 1,
   use: { baseURL: 'http://localhost:3110', locale: 'fr-FR' },
-  webServer: {
-    command: 'node e2e/serve.mjs',
-    url: 'http://localhost:3110/health',
-    reuseExistingServer: false,
-    timeout: 60_000,
-  },
+  webServer: [
+    {
+      command: 'node e2e/serve.mjs',
+      url: 'http://localhost:3110/health',
+      reuseExistingServer: false,
+      timeout: 60_000,
+    },
+    {
+      command: 'node e2e/serve-display.mjs',
+      url: 'http://localhost:3111/health',
+      reuseExistingServer: false,
+      timeout: 60_000,
+    },
+  ],
 });
