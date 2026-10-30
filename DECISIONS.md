@@ -59,6 +59,11 @@ remove it.
 **Timeouts.** The Ollama connection timeout only covers connection: a CPU model may stream for
 minutes. The total request timeout covers the rest.
 
+**Host load comes from node_exporter**, because the Ollama API exposes neither CPU nor system
+memory. By default Core reads port 9100 of the Ollama address every 5 seconds; a missing exporter
+only hides the gauges. Saturation is judged on memory alone: a CPU model at 100 % CPU is working
+normally. In a Proxmox LXC, CPU and load may partly reflect the host.
+
 **Failover before the first chunk only.** A started stream cannot be resumed elsewhere.
 
 **No automatic MCP reconnection**, unlike what the specification asks. Home Assistant banned the

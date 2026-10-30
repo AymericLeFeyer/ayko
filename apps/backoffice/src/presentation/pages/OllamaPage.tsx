@@ -8,6 +8,7 @@ import {
   ConfirmButton,
   EmptyState,
   Field,
+  HostLoad,
   JsonView,
   KeyValueEditor,
   Light,
@@ -406,6 +407,7 @@ function EndpointDialog(props: { endpoint: OllamaEndpoint | null; onClose: () =>
   const [url, setUrl] = useState(endpoint?.url ?? 'http://localhost:11434');
   const [priority, setPriority] = useState<number | null>(endpoint?.priority ?? 0);
   const [timeout, setTimeoutMs] = useState<number | null>(endpoint?.connectTimeoutMs ?? 3000);
+  const [metricsUrl, setMetricsUrl] = useState(endpoint?.metricsUrl ?? '');
   const [headers, setHeaders] = useState<{ key: string; value: string }[]>([]);
   const save = useAction(
     () => {
@@ -414,6 +416,7 @@ function EndpointDialog(props: { endpoint: OllamaEndpoint | null; onClose: () =>
         url,
         priority: priority ?? 0,
         connectTimeoutMs: timeout ?? 3000,
+        metricsUrl: metricsUrl || null,
         headers: pairsToMap(headers),
       };
       return endpoint
@@ -444,6 +447,16 @@ function EndpointDialog(props: { endpoint: OllamaEndpoint | null; onClose: () =>
             />
             <NumberField label="Délai de connexion (ms)" value={timeout} onChange={setTimeoutMs} />
           </div>
+          <Field
+            label="URL des métriques"
+            hint="node_exporter, pour afficher le CPU et la RAM. Vide : même adresse qu'Ollama, port 9100."
+          >
+            <Input
+              placeholder="http://192.168.1.20:9100/metrics"
+              value={metricsUrl}
+              onChange={(event) => setMetricsUrl(event.target.value)}
+            />
+          </Field>
           <KeyValueEditor
             label="En-têtes d'authentification"
             hint="Chiffrés. Remplir cette liste remplace les en-têtes enregistrés."
@@ -509,6 +522,7 @@ function Endpoints() {
                 <TableHead>URL</TableHead>
                 <TableHead>Priorité</TableHead>
                 <TableHead>Latence</TableHead>
+                <TableHead>Machine</TableHead>
                 <TableHead>Actif</TableHead>
                 <TableHead />
               </TableRow>
@@ -531,6 +545,13 @@ function Endpoints() {
                   <TableCell>{endpoint.url}</TableCell>
                   <TableCell>{endpoint.priority}</TableCell>
                   <TableCell>{formatMs(endpoint.lastLatencyMs)}</TableCell>
+                  <TableCell>
+                    {endpoint.host ? (
+                      <HostLoad host={endpoint.host} />
+                    ) : (
+                      <span className="text-muted-foreground text-sm">Métriques indisponibles</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Switch
                       aria-label={`Activer ${endpoint.name}`}

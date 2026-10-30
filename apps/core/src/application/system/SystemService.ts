@@ -7,6 +7,7 @@ import type {
   SetupWizardState,
   SystemSettings,
 } from '@ayko/contracts';
+import { isSaturated } from '../../domain/llm/services/hostMetrics.js';
 import type { Logger } from '../../domain/system/Logger.js';
 import type { SystemRepository } from '../../domain/system/repositories/SystemRepository.js';
 import type { CacheService } from '../cache/CacheService.js';
@@ -60,10 +61,13 @@ export class SystemService {
       });
     }
     for (const endpoint of await this.ollama.listEndpoints()) {
+      const saturated = endpoint.host !== null && isSaturated(endpoint.host);
       const status = !endpoint.enabled
         ? 'disabled'
         : endpoint.lastStatus === 'up'
-          ? 'up'
+          ? saturated
+            ? 'degraded'
+            : 'up'
           : endpoint.lastStatus === 'down'
             ? 'down'
             : 'degraded';
@@ -74,6 +78,7 @@ export class SystemService {
         status,
         detail: endpoint.version ? `Ollama ${endpoint.version}` : endpoint.url,
         latencyMs: endpoint.lastLatencyMs,
+        host: endpoint.host,
       });
     }
     for (const server of await this.registry.listServers()) {

@@ -58,6 +58,7 @@ export const ollamaEndpoints = sqliteTable('ollama_endpoints', {
   lastLatencyMs: real('last_latency_ms'),
   lastCheckedAt: text('last_checked_at'),
   version: text('version'),
+  metricsUrl: text('metrics_url'),
   createdAt: text('created_at').notNull(),
 });
 

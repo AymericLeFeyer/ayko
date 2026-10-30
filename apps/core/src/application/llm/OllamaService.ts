@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type {
   EndpointTestResult,
+  HostMetrics,
   ModelRole,
   ModelRoleName,
   ModelTestEvent,
@@ -16,6 +17,12 @@ import type {
   LlmProviderFactory,
 } from '../../domain/llm/LlmProvider.js';
 import type { EndpointRecord, LlmRepository } from '../../domain/llm/repositories/LlmRepository.js';
+import {
+  computeHostMetrics,
+  defaultMetricsUrl,
+  parseNodeMetrics,
+  type HostSample,
+} from '../../domain/llm/services/hostMetrics.js';
 import type { Logger } from '../../domain/system/Logger.js';
 import type { Vault } from '../../domain/system/Vault.js';
 import { AppError, errorMessage, notFound } from '../../shared/errors.js';
@@ -24,12 +31,10 @@ import type { EventBus } from '../system/EventBus.js';
 
 type EndpointInput = z.output<typeof ollamaEndpointInput>;
 
-const toDto = ({ headersSecretId: _secret, ...endpoint }: EndpointRecord): OllamaEndpoint =>
-  endpoint;
-
 /** Owns endpoints, roles and failover; the rest of Core only sees `chat` and friends. */
 export class OllamaService {
   private readonly toolSupport = new Map<string, boolean>();
+  private readonly hosts = new Map<string, { sample: HostSample; metrics: HostMetrics }>();
 
   constructor(
     private readonly repository: LlmRepository,
@@ -37,10 +42,38 @@ export class OllamaService {
     private readonly createProvider: LlmProviderFactory,
     private readonly bus: EventBus,
     private readonly logger: Logger,
+    private readonly readMetrics: (url: string) => Promise<string>,
   ) {}
 
+  private toDto({ headersSecretId: _secret, ...endpoint }: EndpointRecord): OllamaEndpoint {
+    return { ...endpoint, host: this.hosts.get(endpoint.id)?.metrics ?? null };
+  }
+
   async listEndpoints() {
-    return (await this.repository.listEndpoints()).map(toDto);
+    return (await this.repository.listEndpoints()).map((record) => this.toDto(record));
+  }
+
+  /** A missing exporter is a normal setup: it only hides the gauges, nothing is logged. */
+  async pollHostMetrics() {
+    const endpoints = (await this.repository.listEndpoints()).filter((item) => item.enabled);
+    await Promise.all(
+      endpoints.map(async (endpoint) => {
+        try {
+          const text = await this.readMetrics(
+            endpoint.metricsUrl ?? defaultMetricsUrl(endpoint.url),
+          );
+          const sample = parseNodeMetrics(text);
+          if (!sample) throw new Error('Not a node_exporter page');
+          const previous = this.hosts.get(endpoint.id)?.sample ?? null;
+          const sampledAt = new Date().toISOString();
+          const metrics = computeHostMetrics(sample, previous, sampledAt);
+          this.hosts.set(endpoint.id, { sample, metrics });
+        } catch {
+          this.hosts.delete(endpoint.id);
+        }
+      }),
+    );
+    this.bus.publish({ topic: 'host.metrics' });
   }
 
   async createEndpoint(input: EndpointInput) {
@@ -59,10 +92,11 @@ export class OllamaService {
       lastLatencyMs: null,
       lastCheckedAt: null,
       version: null,
+      metricsUrl: input.metricsUrl ?? null,
     };
     await this.repository.saveEndpoint(record);
     this.bus.publish({ topic: 'ollama.changed' });
-    return toDto(record);
+    return this.toDto(record);
   }
 
   async updateEndpoint(id: string, input: Partial<EndpointInput>) {
@@ -75,8 +109,9 @@ export class OllamaService {
       record.headerNames = Object.keys(headers);
     }
     await this.repository.saveEndpoint(record);
+    this.hosts.delete(id);
     this.bus.publish({ topic: 'ollama.changed' });
-    return toDto(record);
+    return this.toDto(record);
   }
 
   async deleteEndpoint(id: string) {

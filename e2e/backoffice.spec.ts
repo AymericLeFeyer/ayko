@@ -30,6 +30,7 @@ test('first run creates the admin and shows healthy components', async ({ page }
   await login(page);
   await expect(page.getByText('Maison simulée')).toBeVisible();
   await expect(page.getByText('Mode mock')).toBeVisible();
+  await expect(page.getByText('RAM')).toBeVisible({ timeout: 12_000 });
 });
 
 test('every screen renders without a client error', async ({ page }) => {

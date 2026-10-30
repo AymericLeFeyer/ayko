@@ -1,6 +1,18 @@
 import { z } from 'zod';
 import { isoDate, secretMap, uuid } from './common.js';
 
+export const hostMetrics = z.object({
+  /** Null on the first reading: CPU usage needs two samples. */
+  cpuPercent: z.number().nullable(),
+  memoryPercent: z.number(),
+  memoryUsedBytes: z.number(),
+  memoryTotalBytes: z.number(),
+  load1: z.number().nullable(),
+  cpuCount: z.number().int(),
+  sampledAt: isoDate,
+});
+export type HostMetrics = z.infer<typeof hostMetrics>;
+
 export const ollamaEndpoint = z.object({
   id: uuid,
   name: z.string(),
@@ -13,6 +25,10 @@ export const ollamaEndpoint = z.object({
   lastLatencyMs: z.number().nullable(),
   lastCheckedAt: isoDate.nullable(),
   version: z.string().nullable(),
+  /** Null means the node_exporter of the Ollama address, port 9100. */
+  metricsUrl: z.string().nullable(),
+  /** Null while the exporter cannot be read. */
+  host: hostMetrics.nullable(),
 });
 export type OllamaEndpoint = z.infer<typeof ollamaEndpoint>;
 
@@ -24,6 +40,7 @@ export const ollamaEndpointInput = z.object({
   connectTimeoutMs: z.number().int().min(100).max(60_000).default(3000),
   /** Omitted means "keep existing headers"; values are stored encrypted. */
   headers: secretMap.optional(),
+  metricsUrl: z.url().nullable().optional(),
 });
 export type OllamaEndpointInput = z.input<typeof ollamaEndpointInput>;
 

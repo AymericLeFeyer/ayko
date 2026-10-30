@@ -84,6 +84,7 @@ Réglages de pièce ajoutés : `nightStart`, `nightEnd`, `lightMode`, `dashboard
 - Wake Lock, service worker et installation PWA exigent HTTPS ou localhost.
 - MCP : aucune reconnexion automatique, volontairement (ban IP de Home Assistant après trois 401).
 
+- CPU et RAM d'Ollama : lus via node_exporter (`hostMetrics.ts`, `pollHostMetrics`, 5 s). L'API Ollama ne les donne pas. Le % CPU exige deux relevés.
 - Windows : une commande Bash trop longue échoue (`ENAMETOOLONG`). Écrire les fichiers avec l'outil dédié.
 - `bash` seul lance WSL dans `launch.json` ; utiliser le chemin de Git Bash.
 - `contracts` se compile : relancer `npm run build -w @ayko/contracts` après modification, sinon Core et le backoffice voient l'ancienne version.

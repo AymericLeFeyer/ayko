@@ -1,6 +1,6 @@
 import type { ModelRole, ModelRoleName, OllamaEndpoint } from '@ayko/contracts';
 
-export type EndpointRecord = OllamaEndpoint & { headersSecretId: string | null };
+export type EndpointRecord = Omit<OllamaEndpoint, 'host'> & { headersSecretId: string | null };
 
 export interface LlmRepository {
   listEndpoints(): Promise<EndpointRecord[]>;

@@ -32,6 +32,9 @@ UTC timestamps, UUID identifiers.
 
 `/health` also answers at the root, for container health checks.
 
+Ollama endpoints and the `ollama` components of `GET /metrics` carry `host`: CPU and RAM read from
+node_exporter, or null when it is unreachable.
+
 Device-token routes: `GET /device/config`, `GET /device/widgets`.
 
 ## Rich blocks
@@ -71,5 +74,5 @@ A tablet can only cancel its own requests and answer its own confirmations.
 
 ## `/ws/admin`
 
-Session cookie required. Pushes `{topic}` notifications: `mcp.changed`, `ollama.changed`,
+Session cookie required. Pushes `{topic}` notifications: `mcp.changed`, `ollama.changed`, `host.metrics`,
 `devices.changed`, `pairing.changed`, `cache.changed`, `request.changed`, `log`.

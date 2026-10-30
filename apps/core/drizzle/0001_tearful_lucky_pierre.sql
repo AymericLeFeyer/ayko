@@ -1,0 +1,1 @@
+ALTER TABLE `ollama_endpoints` ADD `metrics_url` text;

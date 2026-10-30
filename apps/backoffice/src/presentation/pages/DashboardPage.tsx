@@ -5,6 +5,7 @@ import type { ComponentHealth } from '@ayko/contracts';
 import { systemApi } from '@/infrastructure/api';
 import {
   EmptyState,
+  HostLoad,
   Light,
   PageHeader,
   Panel,
@@ -97,6 +98,7 @@ export function DashboardPage() {
                       <span className="text-muted-foreground min-w-0 flex-1 truncate text-sm">
                         {component.detail}
                       </span>
+                      {component.host && <HostLoad host={component.host} />}
                       <span className="text-muted-foreground text-sm">
                         {formatMs(component.latencyMs)}
                       </span>

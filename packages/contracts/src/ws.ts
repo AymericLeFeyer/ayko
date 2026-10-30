@@ -71,6 +71,7 @@ export type DisplayServerMessage = z.infer<typeof displayServerMessage>;
 export const adminEvent = z.discriminatedUnion('topic', [
   z.object({ topic: z.literal('mcp.changed'), serverId: uuid.optional() }),
   z.object({ topic: z.literal('ollama.changed') }),
+  z.object({ topic: z.literal('host.metrics') }),
   z.object({ topic: z.literal('devices.changed') }),
   z.object({ topic: z.literal('pairing.changed') }),
   z.object({ topic: z.literal('cache.changed') }),

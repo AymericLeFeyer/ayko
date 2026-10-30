@@ -60,13 +60,17 @@ export async function seedDemo(
     // The fake Ollama port can change between runs; keep the seeded endpoint in sync.
     const seeded = endpoints.find((endpoint) => endpoint.name === 'Ollama simulé');
     if (seeded && seeded.url !== fakeOllamaUrl) {
-      await ollama.updateEndpoint(seeded.id, { url: fakeOllamaUrl });
+      await ollama.updateEndpoint(seeded.id, {
+        url: fakeOllamaUrl,
+        metricsUrl: `${fakeOllamaUrl}/metrics`,
+      });
     }
     return;
   }
   await ollama.createEndpoint({
     name: 'Ollama simulé',
     url: fakeOllamaUrl,
+    metricsUrl: `${fakeOllamaUrl}/metrics`,
     enabled: true,
     priority: 0,
     connectTimeoutMs: 3000,

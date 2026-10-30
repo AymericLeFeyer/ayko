@@ -27,6 +27,7 @@ import { DrizzleVoiceRepository } from './infrastructure/db/repositories/Drizzle
 import { seedDefaults, seedDemo } from './infrastructure/db/seed.js';
 import { SdkMcpConnection } from './infrastructure/mcp/SdkMcpConnection.js';
 import { FakeOllama } from './infrastructure/mock/fakeOllama.js';
+import { fetchHostMetrics } from './infrastructure/ollama/fetchHostMetrics.js';
 import { OllamaProvider } from './infrastructure/ollama/OllamaProvider.js';
 import { AesVault } from './infrastructure/system/AesVault.js';
 import { createVoiceEngine } from './infrastructure/voice/FakeVoiceEngine.js';
@@ -35,6 +36,7 @@ import type { Env } from './shared/env.js';
 const VERSION = '0.1.0';
 const HEALTH_INTERVAL_MS = 30_000;
 const PING_INTERVAL_MS = 15_000;
+const HOST_METRICS_INTERVAL_MS = 5000;
 const RETENTION_INTERVAL_MS = 3_600_000;
 
 export interface ContainerOverrides {
@@ -60,6 +62,7 @@ export async function createContainer(env: Env, overrides: ContainerOverrides = 
     overrides.createLlmProvider ?? ((config) => new OllamaProvider(config)),
     bus,
     logger,
+    fetchHostMetrics,
   );
   const registry = new McpRegistry(
     new DrizzleMcpRepository(db),
@@ -171,6 +174,7 @@ export async function createContainer(env: Env, overrides: ContainerOverrides = 
       await ollama.checkHealth();
       every(HEALTH_INTERVAL_MS, () => ollama.checkHealth());
       every(PING_INTERVAL_MS, () => registry.pingAll());
+      every(HOST_METRICS_INTERVAL_MS, () => ollama.pollHostMetrics());
       every(RETENTION_INTERVAL_MS, () => system.runRetention());
       await system.runRetention();
       logger.log('info', 'system', `Ayko Core ${VERSION} démarré${env.mock ? ' (mode mock)' : ''}`);

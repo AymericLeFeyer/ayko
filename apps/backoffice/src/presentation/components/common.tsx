@@ -1,4 +1,5 @@
 import type { UseQueryResult } from '@tanstack/react-query';
+import type { HostMetrics } from '@ayko/contracts';
 import { RefreshCw } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Badge } from '@/presentation/components/ui/badge';
@@ -60,6 +61,34 @@ export const Light = ({ state, label }: { state: Led; label?: string }) => (
   <span className="inline-flex items-center gap-2">
     <span className={cn('led', state !== 'off' && `led-${state}`)} aria-hidden />
     {label && <span>{label}</span>}
+  </span>
+);
+
+function Gauge({ label, percent }: { label: string; percent: number | null }) {
+  const color =
+    percent === null
+      ? 'bg-led-off'
+      : percent >= 90
+        ? 'bg-led-down'
+        : percent >= 75
+          ? 'bg-led-warn'
+          : 'bg-led-up';
+  return (
+    <span className="inline-flex items-center gap-1.5 text-sm">
+      {label}
+      <span className="bg-muted h-1.5 w-12 overflow-hidden rounded-full" aria-hidden>
+        <span className={cn('block h-full', color)} style={{ width: `${percent ?? 0}%` }} />
+      </span>
+      <span className="w-10 text-right">{percent === null ? '–' : `${Math.round(percent)} %`}</span>
+    </span>
+  );
+}
+
+/** Load of the machine running Ollama, read from its node_exporter. */
+export const HostLoad = ({ host }: { host: HostMetrics }) => (
+  <span className="inline-flex gap-3 whitespace-nowrap">
+    <Gauge label="CPU" percent={host.cpuPercent} />
+    <Gauge label="RAM" percent={host.memoryPercent} />
   </span>
 );
 

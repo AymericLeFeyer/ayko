@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { isoDate, uuid } from './common.js';
 import { cacheSettings } from './cache.js';
+import { hostMetrics } from './ollama.js';
 
 export const health = z.object({
   status: z.enum(['ok', 'degraded']),
@@ -17,6 +18,7 @@ export const componentHealth = z.object({
   status: z.enum(['up', 'degraded', 'down', 'disabled']),
   detail: z.string().nullable(),
   latencyMs: z.number().nullable(),
+  host: hostMetrics.nullable().optional(),
 });
 export type ComponentHealth = z.infer<typeof componentHealth>;
 

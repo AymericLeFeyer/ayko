@@ -93,6 +93,7 @@ export class FakeOllama {
   private readonly server: Server;
   private readonly models = [...INITIAL_MODELS];
   private loaded: string | null = null;
+  private cpuSeconds = 0;
 
   constructor() {
     this.server = createServer((request, response) => {
@@ -121,6 +122,20 @@ export class FakeOllama {
   private async route(request: IncomingMessage, response: ServerResponse) {
     const path = request.url ?? '/';
     if (path === '/api/version') return sendJson(response, { version: '0.0.0-mock' });
+    if (path === '/metrics') {
+      // node_exporter's text format, with counters that move like a machine at work.
+      this.cpuSeconds += 1;
+      response.writeHead(200, { 'content-type': 'text/plain' });
+      return response.end(
+        [
+          `node_cpu_seconds_total{cpu="0",mode="idle"} ${this.cpuSeconds}`,
+          `node_cpu_seconds_total{cpu="0",mode="user"} ${this.cpuSeconds * 2}`,
+          'node_load1 1.2',
+          'node_memory_MemTotal_bytes 16000000000',
+          'node_memory_MemAvailable_bytes 6000000000',
+        ].join('\n'),
+      );
+    }
     if (path === '/api/tags') {
       return sendJson(response, {
         models: this.models.map((model) => ({

@@ -5,6 +5,7 @@ import type { AdminEvent } from '@ayko/contracts';
 const KEYS: Record<AdminEvent['topic'], string[][]> = {
   'mcp.changed': [['mcp'], ['metrics']],
   'ollama.changed': [['ollama'], ['metrics']],
+  'host.metrics': [['ollama', 'endpoints'], ['metrics']],
   'devices.changed': [['rooms'], ['devices'], ['metrics']],
   'pairing.changed': [['pairing']],
   'cache.changed': [['cache']],
