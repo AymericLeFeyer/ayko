@@ -67,6 +67,7 @@ export function useConversation(options: {
     session.screen,
     session.exchanges,
     session.keystrokes,
+    session.activity,
     session.confirm,
     busy,
     idleTimeoutSeconds,
@@ -105,6 +106,7 @@ export function useConversation(options: {
     answerConfirm,
     wake: () => dispatch({ type: 'wake' }),
     typing: () => dispatch({ type: 'typing' }),
+    activity: () => dispatch({ type: 'activity' }),
     goHome: () => dispatch({ type: 'sleep' }),
   };
 }

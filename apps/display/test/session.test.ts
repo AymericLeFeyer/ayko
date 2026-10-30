@@ -76,6 +76,12 @@ describe('sessionReducer', () => {
     expect(run(sent, notice('info')).exchanges[0]?.error).toBeNull();
   });
 
+  it('counts reading as activity without changing the screen', () => {
+    const session = run(sent, { type: 'activity' });
+    expect(session.activity).toBe(1);
+    expect(session.screen).toBe('thinking');
+  });
+
   it('forgets the conversation when going home, but not the connection', () => {
     const session = run(sent, { type: 'sleep' });
     expect(session.exchanges).toHaveLength(0);

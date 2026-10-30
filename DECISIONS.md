@@ -112,6 +112,10 @@ the model's answer.
 **Widgets run a read-only tool chosen per room**, in `auto` policy only, cached 60 seconds: the home
 screen runs unattended, so it can never reach a tool that changes something.
 
+**Answers render as Markdown through `react-markdown`**, which ignores raw HTML. Images are dropped
+and links stay plain text: model output is untrusted, an image URL would make the tablet call
+outside, and a kiosk has no way back from a followed link.
+
 **The conversation of a tablet is lost when it goes home**, which is the idle behaviour the spec
 describes. An answer in flight during a disconnection is reported as interrupted, not resumed.
 

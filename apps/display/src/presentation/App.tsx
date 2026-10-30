@@ -100,6 +100,7 @@ function Kiosk(props: {
             suggestions={config.suggestions}
             onSend={send}
             onTyping={conversation.typing}
+            onActivity={conversation.activity}
             onCancel={conversation.cancel}
             onHome={conversation.goHome}
           />

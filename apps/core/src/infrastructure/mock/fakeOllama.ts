@@ -31,6 +31,20 @@ const INITIAL_MODELS: FakeModel[] = [
 
 const TOKEN_DELAY_MS = 25;
 
+/** Long on purpose: it has to overflow a tablet screen to exercise scrolling. */
+const MARKDOWN_SAMPLE = [
+  '# Résumé de la journée',
+  'Voici un point **important** et un autre *plus discret*.',
+  '## Tâches',
+  ...Array.from({ length: 24 }, (_, index) => `- Tâche numéro ${index + 1} à terminer`),
+  '## Suite',
+  '1. Première étape',
+  '2. Deuxième étape',
+  '> Une citation pour finir',
+  '`npm run dev` lance le projet.',
+  'Fin de la démonstration.',
+].join('\n\n');
+
 /** Minimal rule-based "model": turns device phrases into tool calls. */
 function decide(text: string, tools: WireTool[]) {
   const lower = text.toLowerCase();
@@ -240,7 +254,9 @@ export class FakeOllama {
     const answer =
       last?.role === 'tool'
         ? `C'est fait. ${last.content}`
-        : `Réponse simulée à : « ${lastUser?.content ?? ''} ». Le mode mock n'utilise aucun vrai modèle.`;
+        : /markdown/i.test(lastUser?.content ?? '')
+          ? MARKDOWN_SAMPLE
+          : `Réponse simulée à : « ${lastUser?.content ?? ''} ». Le mode mock n'utilise aucun vrai modèle.`;
     const tokens = answer.split(/(?<=\s)/);
     for (const token of tokens) {
       if (closed) return undefined;

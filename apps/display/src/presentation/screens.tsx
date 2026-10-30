@@ -1,8 +1,9 @@
-import { Mic, Send, X } from 'lucide-react';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { ArrowDown, Mic, Send, X } from 'lucide-react';
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import type { Block, HouseActivity, RoomConfig, ScreenState } from '@ayko/contracts';
 import type { Exchange, PendingConfirm, Step } from '@/domain/session';
 import { BlockView } from './blocks/registry';
+import { Markdown } from './Markdown';
 import { Orb } from './Orb';
 
 const LOCALE = 'fr-FR';
@@ -68,8 +69,11 @@ export function HomeScreen(props: {
   );
 }
 
-function ActivityPanel({ steps }: { steps: Step[] }) {
-  const [open, setOpen] = useState(true);
+function ActivityPanel({ steps, pending }: { steps: Step[]; pending: boolean }) {
+  // Open while Ayko works, then folded so the answer gets the room.
+  const [choice, setChoice] = useState<boolean | null>(null);
+  const open = choice ?? pending;
+  const setOpen = setChoice;
   if (steps.length === 0) return null;
   return (
     <section className="activity">
@@ -95,8 +99,8 @@ function ExchangeView({ exchange }: { exchange: Exchange }) {
   return (
     <article className="exchange">
       <p className="question">{exchange.question}</p>
-      <ActivityPanel steps={exchange.steps} />
-      {exchange.answer && <p className="answer">{exchange.answer}</p>}
+      <ActivityPanel steps={exchange.steps} pending={exchange.pending} />
+      {exchange.answer && <Markdown text={exchange.answer} />}
       {exchange.blocks.map((block, index) => (
         <BlockView key={index} block={block} />
       ))}
@@ -108,6 +112,9 @@ function ExchangeView({ exchange }: { exchange: Exchange }) {
     </article>
   );
 }
+
+const END_MARGIN_PX = 80;
+const ACTIVITY_THROTTLE_MS = 1000;
 
 const STATUS_LABEL: Record<ScreenState, string> = {
   idle: '',
@@ -126,20 +133,52 @@ export function ConversationScreen(props: {
   suggestions: string[];
   onSend: (text: string) => boolean;
   onTyping: () => void;
+  onActivity: () => void;
   onCancel: () => void;
   onHome: () => void;
 }) {
   const { exchanges, busy, onSend } = props;
   const [text, setText] = useState('');
-  const end = useRef<HTMLDivElement>(null);
+  const list = useRef<HTMLDivElement>(null);
+  const following = useRef(true);
+  const lastActivity = useRef(0);
+  const [atEnd, setAtEnd] = useState(true);
 
-  useEffect(() => {
-    end.current?.scrollIntoView({ block: 'end' });
+  const scrollToEnd = () => {
+    const element = list.current;
+    if (element) element.scrollTop = element.scrollHeight;
+  };
+
+  // Follow the stream only while the reader is at the end: scrolling up must hold still.
+  useLayoutEffect(() => {
+    if (following.current) scrollToEnd();
   }, [exchanges]);
+
+  const onScroll = () => {
+    const element = list.current;
+    if (!element) return;
+    const distance = element.scrollHeight - element.scrollTop - element.clientHeight;
+    following.current = distance < END_MARGIN_PX;
+    setAtEnd(following.current);
+    // Reading counts as activity, or a long answer would vanish mid-sentence.
+    if (Date.now() - lastActivity.current > ACTIVITY_THROTTLE_MS) {
+      lastActivity.current = Date.now();
+      props.onActivity();
+    }
+  };
+
+  const jumpToEnd = () => {
+    following.current = true;
+    setAtEnd(true);
+    scrollToEnd();
+  };
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (text.trim() && onSend(text.trim())) setText('');
+    if (text.trim() && onSend(text.trim())) {
+      setText('');
+      jumpToEnd();
+    }
   };
 
   return (
@@ -154,7 +193,7 @@ export function ConversationScreen(props: {
         </button>
       </aside>
       <main className="conversation-main">
-        <div className="exchanges">
+        <div ref={list} className="exchanges" onScroll={onScroll}>
           {exchanges.length === 0 && (
             <div className="suggestions">
               {props.suggestions.map((suggestion) => (
@@ -167,8 +206,12 @@ export function ConversationScreen(props: {
           {exchanges.map((exchange) => (
             <ExchangeView key={exchange.id} exchange={exchange} />
           ))}
-          <div ref={end} />
         </div>
+        {!atEnd && (
+          <button className="button jump-to-end" onClick={jumpToEnd}>
+            <ArrowDown /> Aller à la fin
+          </button>
+        )}
         <form className="composer" onSubmit={submit}>
           <button
             type="button"

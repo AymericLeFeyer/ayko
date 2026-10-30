@@ -65,6 +65,34 @@ test('a paired tablet shows home, streams answers and cards, and survives change
     await expect(page.getByText('Bloc inconnu : salon dans le noir')).toBeVisible();
   });
 
+  await test.step('a long Markdown answer renders and scrolls', async () => {
+    const list = page.locator('.exchanges');
+    const overflowing = () =>
+      list.evaluate((element) => element.scrollHeight > element.clientHeight);
+    const offset = () => list.evaluate((element) => element.scrollTop);
+
+    await page.getByLabel('Votre message').fill('Montre du markdown');
+    await page.getByRole('button', { name: 'Envoyer' }).click();
+    await expect(page.getByRole('heading', { name: 'Résumé de la journée' })).toBeVisible();
+    await expect.poll(overflowing, { timeout: 10_000 }).toBe(true);
+
+    // Scrolling up during the stream must hold still.
+    await list.evaluate((element) => {
+      element.scrollTop = 0;
+    });
+    await page.waitForTimeout(600);
+    expect(await offset()).toBe(0);
+
+    await expect(page.getByText('Fin de la démonstration.')).toBeAttached({ timeout: 15_000 });
+    await page.getByRole('button', { name: 'Aller à la fin' }).click();
+    await expect(page.getByText('Fin de la démonstration.')).toBeInViewport();
+    await expect(page.getByLabel('Votre message')).toBeInViewport();
+
+    await expect(page.locator('.markdown strong', { hasText: 'important' })).toBeAttached();
+    await expect(page.getByRole('listitem').filter({ hasText: 'Tâche numéro 24' })).toBeAttached();
+    expect(await list.innerText()).not.toContain('**');
+  });
+
   await test.step('a sensitive tool asks Yes or No', async () => {
     await page.getByLabel('Votre message').fill('Verrouille la porte');
     await page.getByRole('button', { name: 'Envoyer' }).click();

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ComponentType } from 'react';
 import { knownBlock, type Block, type KnownBlock } from '@ayko/contracts';
+import { Markdown } from '../Markdown';
 
 type OfType<T extends KnownBlock['type']> = Extract<KnownBlock, { type: T }>;
 type Registry = { [T in KnownBlock['type']]: ComponentType<{ block: OfType<T> }> };
@@ -21,19 +22,6 @@ function ActionButton({ action }: { action?: { label: string; text: string } }) 
     <button className="button" onClick={() => send(action.text)}>
       {action.label}
     </button>
-  );
-}
-
-/** Light Markdown: bold and line breaks are all a spoken-style answer needs. */
-function RichText({ text }: { text: string }) {
-  return (
-    <p className="rich-text">
-      {text
-        .split(/(\*\*[^*]+\*\*)/)
-        .map((part, index) =>
-          part.startsWith('**') ? <strong key={index}>{part.slice(2, -2)}</strong> : part,
-        )}
-    </p>
   );
 }
 
@@ -66,7 +54,7 @@ function Timer({ block }: { block: OfType<'timer'> }) {
 }
 
 const registry: Registry = {
-  text: ({ block }) => <RichText text={block.text} />,
+  text: ({ block }) => <Markdown text={block.text} />,
   entity: ({ block }) => (
     <Card>
       <EntityRow item={block} />
