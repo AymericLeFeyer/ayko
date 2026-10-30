@@ -56,6 +56,8 @@ export const mcpTool = z.object({
   cacheEnabled: z.boolean(),
   /** Read tools only: seconds a live result may be reused. Null means never. */
   cacheTtlSeconds: z.number().int().nullable(),
+  /** Its output describes the house and goes into every prompt. */
+  contextSource: z.boolean(),
   roomOverrides: z.array(z.object({ roomId: uuid, policy: toolPolicy })),
 });
 export type McpTool = z.infer<typeof mcpTool>;
@@ -71,6 +73,7 @@ export const toolPolicyUpdate = z.object({
   customDescription: z.string().max(2000).nullable().optional(),
   cacheEnabled: z.boolean().optional(),
   cacheTtlSeconds: z.number().int().min(1).nullable().optional(),
+  contextSource: z.boolean().optional(),
   roomOverrides: z.array(z.object({ roomId: uuid, policy: toolPolicy })).optional(),
 });
 export type ToolPolicyUpdate = z.infer<typeof toolPolicyUpdate>;

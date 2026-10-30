@@ -55,6 +55,22 @@ text stays off screen and the model is reminded once; after that Ayko says plain
 done. This costs streaming on the turns before the action, which is the price of never showing a
 false success. Reads alone also never teach an action shortcut.
 
+**The model receives the list of devices.** Guessing names was the main cause of failures. Any
+read-only tool flagged as a context source feeds the prompt; Home Assistant's `GetLiveContext` is
+picked up by name. Read for 20 seconds at most, and again after an action. The room comes first, so
+the budget cuts the rest of the house.
+
+**Tool results stay in history** for the last three requests, as real call and result messages.
+Otherwise the model loses each turn what it just found, like the true name of a device.
+
+**A tablet session belongs to the room**, resumed within 30 minutes even after a reconnection.
+
+**Memories are explicit, not extracted.** "Souviens-toi que…" and "oublie que…" are handled by code,
+so nothing depends on a model that invents. The only automatic learning is a nickname, after an
+action that really succeeded. Up to `memoryMaxItems` memories everything is sent; beyond that,
+pinned ones plus those sharing keywords with the sentence, with embeddings as a bonus when
+available. Everything is visible and editable in the backoffice.
+
 **One gate for every tool execution.** LLM calls and cache replays go through
 `AgentService.executeTool`, where the policy is resolved again. A model cannot reach a forbidden
 tool by inventing its name, and a replay cannot skip a confirmation.

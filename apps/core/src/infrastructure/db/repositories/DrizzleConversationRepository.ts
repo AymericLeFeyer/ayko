@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, like, or, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, like, or, type SQL } from 'drizzle-orm';
 import type { Conversation, Message, StepKind } from '@ayko/contracts';
 import type {
   ConversationRepository,
@@ -113,6 +113,34 @@ export class DrizzleConversationRepository implements ConversationRepository {
       .limit(limit)
       .all();
     return rows.reverse();
+  }
+
+  async findRecentConversation(roomId: string, source: Conversation['source'], sinceIso: string) {
+    const row = this.db
+      .select({ id: conversations.id })
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.roomId, roomId),
+          eq(conversations.source, source),
+          gte(conversations.updatedAt, sinceIso),
+        ),
+      )
+      .orderBy(desc(conversations.updatedAt))
+      .limit(1)
+      .get();
+    return row?.id ?? null;
+  }
+
+  async toolCallsOf(requestIds: string[]) {
+    if (requestIds.length === 0) return [];
+    const rows = this.db
+      .select()
+      .from(toolCalls)
+      .where(inArray(toolCalls.requestId, requestIds))
+      .orderBy(asc(toolCalls.createdAt))
+      .all();
+    return rows.map((row) => ({ ...row, requestId: row.requestId as string }));
   }
 
   async createRequest(request: RequestRecord) {

@@ -102,6 +102,8 @@ export const mcpTools = sqliteTable(
     policy: text('policy').$type<ToolPolicy>().notNull(),
     cacheEnabled: bool('cache_enabled').notNull(),
     cacheTtlSeconds: integer('cache_ttl_seconds'),
+    /** Null follows the automatic rule on the tool name. */
+    contextSource: bool('context_source'),
   },
   (table) => [index('mcp_tools_server_idx').on(table.serverId)],
 );
@@ -274,6 +276,24 @@ export const voiceProviders = sqliteTable('voice_providers', {
   config: json<VoiceProviderConfig>('config').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
+
+export const memories = sqliteTable(
+  'memories',
+  {
+    id: text('id').primaryKey(),
+    content: text('content').notNull(),
+    roomId: text('room_id').references(() => rooms.id, { onDelete: 'cascade' }),
+    source: text('source').$type<'user' | 'learned' | 'admin'>().notNull(),
+    pinned: bool('pinned').notNull(),
+    aliasKey: text('alias_key'),
+    embedding: json<number[]>('embedding'),
+    useCount: integer('use_count').notNull(),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+    lastUsedAt: text('last_used_at'),
+  },
+  (table) => [index('memories_alias_idx').on(table.aliasKey)],
+);
 
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),

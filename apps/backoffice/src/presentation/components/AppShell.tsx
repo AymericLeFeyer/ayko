@@ -48,6 +48,7 @@ const NAV: { title: string; items: NavItem[] }[] = [
     title: 'Mémoire',
     items: [
       { to: '/historique', label: 'Historique' },
+      { to: '/souvenirs', label: 'Souvenirs' },
       { to: '/raccourcis', label: 'Raccourcis' },
     ],
   },

@@ -91,6 +91,11 @@ export const agentSettings = z.object({
   historyMessages: z.number().int().min(0).max(200),
   /** Tool output is capped so one big result cannot evict the whole prompt. */
   toolResultMaxChars: z.number().int().min(100),
+  /** A tablet resumes the conversation of its room within this delay. */
+  sessionMinutes: z.number().int().min(1).default(30),
+  homeContextMaxChars: z.number().int().min(200).default(4000),
+  memoryEnabled: z.boolean().default(true),
+  memoryMaxItems: z.number().int().min(1).max(50).default(8),
 });
 export type AgentSettings = z.infer<typeof agentSettings>;
 

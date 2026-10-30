@@ -101,6 +101,32 @@ server.registerTool(
     ]),
 );
 
+// Same shape as Home Assistant's overview, so the real parser runs in mock mode.
+server.registerTool(
+  'GetLiveContext',
+  {
+    description: "Donne l'état de tous les appareils",
+    inputSchema: {},
+    annotations: { readOnlyHint: true },
+  },
+  async () =>
+    text(
+      JSON.stringify({
+        result: [
+          'Live Context: An overview of the areas and the devices in this smart home:',
+          '- names: Lumière salon, spot',
+          '  domain: light',
+          `  state: '${lights.get('salon') ? 'on' : 'off'}'`,
+          '  areas: Salon',
+          '- names: light_desktop_lightstrip, ruban led',
+          '  domain: light',
+          "  state: 'off'",
+          '  areas: Chambre',
+        ].join('\n'),
+      }),
+    ),
+);
+
 server.registerTool(
   'lock_door',
   { description: 'Verrouille une porte', inputSchema: { door: z.string() } },

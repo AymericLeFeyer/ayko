@@ -3,6 +3,8 @@ import type { AgentEvent, ModelParams, StepKind, StepStatus } from '@ayko/contra
 import type { ConversationRepository } from '../../domain/conversation/repositories/ConversationRepository.js';
 import { isActionRequest } from '../../domain/cache/services/normalizeText.js';
 import { fitHistory } from '../../domain/conversation/services/contextWindow.js';
+import { withToolHistory } from '../../domain/conversation/services/toolHistory.js';
+import { parseMemoryCommand } from '../../domain/memory/services/memoryRules.js';
 import type { CacheEntryRecord } from '../../domain/cache/repositories/CacheRepository.js';
 import type { LlmMessage, LlmTool, LlmToolCall } from '../../domain/llm/LlmProvider.js';
 import {
@@ -17,6 +19,8 @@ import type { Logger } from '../../domain/system/Logger.js';
 import { isAbortError, Semaphore } from '../../shared/async.js';
 import { AppError, errorMessage } from '../../shared/errors.js';
 import type { CacheMatch, CacheService, ExecutedCall } from '../cache/CacheService.js';
+import type { MemoryService } from '../memory/MemoryService.js';
+import type { HomeContextService } from './HomeContextService.js';
 import type { OllamaService } from '../llm/OllamaService.js';
 import type { ExposedTool, McpRegistry } from '../mcp/McpRegistry.js';
 import type { PersonaService } from '../persona/PersonaService.js';
@@ -91,6 +95,8 @@ export class AgentService {
     private readonly personas: PersonaService,
     private readonly rooms: RoomService,
     private readonly cache: CacheService,
+    private readonly memory: MemoryService,
+    private readonly homeContext: HomeContextService,
     private readonly settings: SettingsService,
     private readonly bus: EventBus,
     private readonly logger: Logger,
@@ -197,6 +203,12 @@ export class AgentService {
   }
 
   private async ensureConversation(input: AgentInput, roomId: string | null, now: string) {
+    if (input.source === 'display' && roomId) {
+      const { agent } = await this.settings.get();
+      const since = new Date(Date.parse(now) - agent.sessionMinutes * 60_000).toISOString();
+      const recent = await this.conversations.findRecentConversation(roomId, 'display', since);
+      if (recent) return recent;
+    }
     if (input.conversationId) {
       const existing = await this.conversations.findConversation(input.conversationId);
       if (existing) return existing.id;
@@ -212,7 +224,26 @@ export class AgentService {
     return id;
   }
 
+  /** "Souviens-toi que…" never reaches the model, so nothing can be invented or lost. */
+  private async runMemoryCommand(run: Run) {
+    const { agent } = await this.settings.get();
+    const command = agent.memoryEnabled ? parseMemoryCommand(run.input.text) : null;
+    if (!command) return null;
+    let answer = "C'est noté, je m'en souviendrai.";
+    if (command.type === 'remember') {
+      await this.memory.remember(command.fact);
+    } else {
+      const forgotten = await this.memory.forget(command.query);
+      answer = forgotten ? `C'est oublié : ${forgotten}.` : 'Je ne trouve rien de tel en mémoire.';
+    }
+    run.emit({ type: 'state.changed', requestId: run.requestId, state: 'answering' });
+    run.emit({ type: 'answer.delta', requestId: run.requestId, text: answer });
+    return answer;
+  }
+
   private async execute(run: Run): Promise<{ answer: string; cacheHit: boolean }> {
+    const remembered = await this.runMemoryCommand(run);
+    if (remembered) return { answer: remembered, cacheHit: false };
     const useCache = !run.input.bypassCache && (await this.cache.isEnabledFor(run.roomId));
     if (useCache) {
       const started = performance.now();
@@ -325,7 +356,10 @@ export class AgentService {
     args: Record<string, unknown>,
     source: 'llm' | 'cache',
   ): Promise<{ text: string; isError: boolean; declined: boolean }> {
-    if (!tool.readOnly) run.actionAttempted = true;
+    if (!tool.readOnly) {
+      run.actionAttempted = true;
+      this.homeContext.invalidate();
+    }
     const policy = this.registry.policyFor(tool, run.roomId);
     if (policy === 'forbidden') {
       run.anyToolFailed = true;
@@ -492,10 +526,22 @@ export class AgentService {
       tools.length > 0 ? await this.ollama.supportsTools(model).catch(() => true) : true;
 
     const canAct = exposed.some((item) => !item.tool.readOnly);
+    const home = await this.homeContext.forPrompt(
+      exposed.map((item) => item.tool),
+      run.roomId,
+      room.name,
+      agent.homeContextMaxChars,
+      run.signal,
+    );
+    const memories = await this.memory.recall(run.input.text, run.roomId, run.signal);
     const systemPrompt = [
       params.systemPrompt,
       rendered.prompt,
       contextBlock,
+      home,
+      memories.length > 0
+        ? `Ce que tu sais sur cette maison :\n${memories.map((item) => `- ${item}`).join('\n')}`
+        : null,
       canAct ? ACTION_CLAUSE : null,
       native ? null : structuredToolPrompt(tools),
     ]
@@ -506,13 +552,24 @@ export class AgentService {
       run.conversationId,
       agent.historyMessages + 1,
     );
-    const history: LlmMessage[] = previous
-      .filter((message) => message.requestId !== run.requestId)
-      .filter((message) => message.role === 'user' || message.role === 'assistant')
-      .map(({ role, content }) => ({ role, content }));
+    const past = previous.filter((message) => message.requestId !== run.requestId);
+    const requestIds = [...new Set(past.flatMap((message) => message.requestId ?? []))];
+    // A model without native tools has no message format for these results.
+    const pastCalls = native ? await this.conversations.toolCallsOf(requestIds) : [];
+    const exposedName = (toolName: string) =>
+      exposed.find((item) => item.tool.name === toolName)?.exposedName ?? toolName;
+    const history = withToolHistory(past, pastCalls, exposedName);
+    const fitted = fitHistory(
+      history,
+      systemPrompt,
+      run.input.text,
+      params.numCtx ?? DEFAULT_NUM_CTX,
+    );
+    // The window may cut between a call and its result, which models refuse.
+    const firstUser = fitted.findIndex((message) => message.role === 'user');
     const messages: LlmMessage[] = [
       { role: 'system', content: systemPrompt },
-      ...fitHistory(history, systemPrompt, run.input.text, params.numCtx ?? DEFAULT_NUM_CTX),
+      ...(firstUser >= 0 ? fitted.slice(firstUser) : []),
       { role: 'user', content: run.input.text },
     ];
     await this.conversations.updateRequest(run.requestId, {
@@ -676,6 +733,7 @@ export class AgentService {
         durationMs,
       });
       if (!cacheHit && !run.anyToolFailed) {
+        await this.learnAliases(run);
         await this.cache.learn({
           text: run.input.text,
           roomId: run.roomId,
@@ -703,6 +761,16 @@ export class AgentService {
       requestId: run.requestId,
       roomId: run.roomId,
     });
+  }
+
+  private async learnAliases(run: Run) {
+    const { agent } = await this.settings.get();
+    if (!agent.memoryEnabled) return;
+    const names = run.calls
+      .filter(({ tool }) => !tool.readOnly)
+      .flatMap(({ arguments: args }) => args.name ?? [])
+      .filter((name): name is string => typeof name === 'string');
+    await this.memory.learnAlias(run.input.text, names, run.roomId);
   }
 
   private async fail(run: Run, error: unknown) {

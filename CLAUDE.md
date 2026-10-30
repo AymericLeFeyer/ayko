@@ -24,6 +24,7 @@ Interface en français ; code, commentaires, API et commits en anglais.
 | rooms        | `RoomService`, `DeviceHub`                     | `RoomRepository`                       |
 | conversation | `AgentService`                                 | `ConversationRepository`, `fitHistory` |
 | cache        | `CacheService`                                 | `CacheRepository`, `normalizeText`     |
+| memory       | `MemoryService`                                | `MemoryRepository`, `memoryRules`      |
 | voice        | `VoiceService`                                 | `VoiceEngine`, `VoiceRepository`       |
 | system       | `SystemService`, `SettingsService`, `EventBus` | `SystemRepository`, `Vault`, `Logger`  |
 
@@ -68,6 +69,12 @@ blanche, sans dépendance ni logique métier.
 
 Côté Core : `WidgetService` (`GET /device/widgets`), `blocksFromResult`, frame `house.activity`.
 Réglages de pièce ajoutés : `nightStart`, `nightEnd`, `lightMode`, `dashboardMode`, `widgetTools`.
+
+## Contexte du modèle (`llmLoop`)
+
+Prompt système : persona, contexte, liste d'appareils (`HomeContextService`, outil `contextSource`),
+souvenirs (`MemoryService.recall`), consigne d'action. Page backoffice : `/souvenirs` (`MemoryPage`).
+Commandes `parseMemoryCommand` (« souviens-toi que », « oublie que ») traitées sans le modèle.
 
 ## Patterns
 

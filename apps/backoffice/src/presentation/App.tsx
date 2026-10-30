@@ -10,6 +10,7 @@ import { HistoryPage } from './pages/HistoryPage';
 import { LogsPage } from './pages/LogsPage';
 import { McpPage } from './pages/McpPage';
 import { McpServerPage } from './pages/McpServerPage';
+import { MemoryPage } from './pages/MemoryPage';
 import { OllamaPage } from './pages/OllamaPage';
 import { PersonasPage } from './pages/PersonasPage';
 import { PlaygroundPage } from './pages/PlaygroundPage';
@@ -58,6 +59,7 @@ export function App() {
         <Route path="voix" element={<VoicePage />} />
         <Route path="historique" element={<HistoryPage />} />
         <Route path="raccourcis" element={<CachePage />} />
+        <Route path="souvenirs" element={<MemoryPage />} />
         <Route path="journaux" element={<LogsPage />} />
         <Route path="reglages" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

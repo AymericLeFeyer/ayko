@@ -38,8 +38,8 @@ Replaceable providers: `LlmProvider`, `McpConnection`, `VoiceEngine`, repositori
 2. If the cache applies, `CacheService.lookup` looks in the RAM index, the database, then
    optionally by embeddings. A match replays the stored calls; a failed replay falls through.
 3. The request waits its turn in the queue (one at a time by default).
-4. The agent resolves the model and the persona, then routes if enabled. It builds the prompt and
-   exposes the tools allowed in the room.
+4. The agent resolves the model and the persona, then routes if enabled. It builds the prompt with
+   the list of devices and the relevant memories, and exposes the tools allowed in the room.
 5. It loops: stream the model, run requested tools in parallel, feed results back, until a final
    answer or the iteration limit.
 6. It stores the answer, statistics, history, and learns a cache entry if every tool succeeded.

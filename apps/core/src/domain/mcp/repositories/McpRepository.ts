@@ -16,9 +16,10 @@ export interface McpServerRecord {
   updatedAt: string;
 }
 
-export type McpToolRecord = Omit<McpTool, 'serverName'> & {
+export type McpToolRecord = Omit<McpTool, 'serverName' | 'contextSource'> & {
   schemaHash: string;
   serverName: string;
+  contextSource: boolean | null;
 };
 
 export interface NewToolCall {
@@ -67,6 +68,7 @@ export interface McpRepository {
         | 'customDescription'
         | 'cacheEnabled'
         | 'cacheTtlSeconds'
+        | 'contextSource'
       >
     >,
   ): Promise<void>;

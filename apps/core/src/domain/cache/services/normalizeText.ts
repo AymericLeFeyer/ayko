@@ -66,7 +66,7 @@ const AMBIGUOUS = [
 ];
 const OPEN_QUESTION = /\b(pourquoi|comment|explique|raconte|c est quoi|qu est ce|que penses)\b/;
 
-const ACTION_VERBS = new Set(
+export const ACTION_VERBS = new Set(
   `allumer eteindre ouvrir fermer baisser monter descendre lancer arreter demarrer activer
   desactiver regler augmenter diminuer tamiser verrouiller deverrouiller couper mettre illuminer
   eclairer`.split(/\s+/),

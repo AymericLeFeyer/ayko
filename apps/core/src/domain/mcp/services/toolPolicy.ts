@@ -8,6 +8,12 @@ const NEVER_CACHED = /search|recherche|web|browse|scrape|fetch_url|news/i;
 export const defaultPolicy = (toolName: string): ToolPolicy =>
   SENSITIVE.test(toolName) ? 'confirm' : 'auto';
 
+const CONTEXT_TOOL = /livecontext/i;
+
+/** The admin's choice wins; otherwise Home Assistant's overview is picked up by name. */
+export const isContextTool = (tool: { name: string; contextSource: boolean | null }) =>
+  tool.contextSource ?? CONTEXT_TOOL.test(tool.name);
+
 export const looksReadOnly = (toolName: string): boolean => READ_ONLY.test(toolName);
 
 export const isNeverCached = (toolName: string): boolean => NEVER_CACHED.test(toolName);

@@ -12,6 +12,7 @@ import {
   logs,
   mcpServers,
   mcpTools,
+  memories,
   modelRoles,
   ollamaEndpoints,
   personas,
@@ -36,6 +37,7 @@ const BACKUP_TABLES: Record<string, { table: SQLiteTable; pk: SQLiteColumn | nul
   mcpTools: { table: mcpTools, pk: mcpTools.id },
   toolPolicyOverrides: { table: toolPolicyOverrides, pk: null },
   voiceProviders: { table: voiceProviders, pk: voiceProviders.id },
+  memories: { table: memories, pk: memories.id },
 };
 
 export class DrizzleSystemRepository implements SystemRepository {

@@ -24,6 +24,8 @@ import type {
   McpServerInput,
   McpTemplate,
   McpTool,
+  Memory,
+  MemoryInput,
   Metrics,
   ModelRole,
   ModelTestEvent,
@@ -173,6 +175,14 @@ export const cacheApi = {
   saveSettings: (settings: CacheSettings) =>
     http<CacheSettings>('PUT', '/cache/settings', settings),
   stats: () => get<CacheStats>('/cache/stats'),
+};
+
+export const memoryApi = {
+  list: () => get<Memory[]>('/memories'),
+  create: (input: MemoryInput) => http<Memory>('POST', '/memories', input),
+  update: (id: string, input: Partial<MemoryInput>) =>
+    http<Memory>('PATCH', `/memories/${id}`, input),
+  remove: (id: string) => http('DELETE', `/memories/${id}`),
 };
 
 export const voiceApi = {

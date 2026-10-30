@@ -1,3 +1,4 @@
+import type { PastToolCall } from '../services/toolHistory.js';
 import type {
   Conversation,
   ConversationDetail,
@@ -64,6 +65,13 @@ export interface ConversationRepository {
   addMessage(message: Message): Promise<void>;
   /** Most recent messages in chronological order, for the context window. */
   recentMessages(conversationId: string, limit: number): Promise<Message[]>;
+  /** Latest conversation of a room still within its session window. */
+  findRecentConversation(
+    roomId: string,
+    source: Conversation['source'],
+    sinceIso: string,
+  ): Promise<string | null>;
+  toolCallsOf(requestIds: string[]): Promise<PastToolCall[]>;
   createRequest(request: RequestRecord): Promise<void>;
   updateRequest(id: string, update: RequestUpdate): Promise<void>;
   addStep(step: StepRecord): Promise<void>;

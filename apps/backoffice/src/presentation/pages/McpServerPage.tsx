@@ -179,6 +179,15 @@ function ToolPolicyEditor({ tool, rooms }: { tool: McpTool; rooms: Room[] }) {
           />
           Raccourcis autorisés
         </label>
+        {tool.readOnly && (
+          <label className="flex items-center gap-2 text-sm">
+            <Switch
+              checked={tool.contextSource}
+              onCheckedChange={(contextSource) => update.mutate({ contextSource })}
+            />
+            Décrit la maison à Ayko
+          </label>
+        )}
         <Field label="Autorisation" className="w-56">
           <Select
             value={tool.policy}

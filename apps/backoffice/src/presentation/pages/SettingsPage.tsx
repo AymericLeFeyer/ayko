@@ -96,6 +96,25 @@ function General() {
                   value={draft.agent.toolResultMaxChars}
                   onChange={(value) => agent({ toolResultMaxChars: value ?? 4000 })}
                 />
+                <NumberField
+                  label="Durée d'une session de tablette (min)"
+                  hint="Une pièce reprend sa conversation dans ce délai"
+                  min={1}
+                  value={draft.agent.sessionMinutes}
+                  onChange={(value) => agent({ sessionMinutes: value ?? 30 })}
+                />
+                <NumberField
+                  label="Taille de la liste d'appareils"
+                  hint="En caractères, envoyée avec chaque demande"
+                  value={draft.agent.homeContextMaxChars}
+                  onChange={(value) => agent({ homeContextMaxChars: value ?? 4000 })}
+                />
+                <NumberField
+                  label="Souvenirs par demande"
+                  min={1}
+                  value={draft.agent.memoryMaxItems}
+                  onChange={(value) => agent({ memoryMaxItems: value ?? 8 })}
+                />
               </div>
               <label className="mt-3 flex items-center gap-2">
                 <Switch
@@ -103,6 +122,13 @@ function General() {
                   onCheckedChange={(routingEnabled) => agent({ routingEnabled })}
                 />
                 Utiliser le modèle de routage
+              </label>
+              <label className="mt-3 flex items-center gap-2">
+                <Switch
+                  checked={draft.agent.memoryEnabled}
+                  onCheckedChange={(memoryEnabled) => agent({ memoryEnabled })}
+                />
+                Utiliser les souvenirs
               </label>
             </Section>
             <Section title="Journaux et rétention">

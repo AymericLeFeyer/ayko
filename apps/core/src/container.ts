@@ -1,9 +1,11 @@
 import { join } from 'node:path';
 import { AgentService } from './application/agent/AgentService.js';
+import { HomeContextService } from './application/agent/HomeContextService.js';
 import { CacheService } from './application/cache/CacheService.js';
 import { AuthService } from './application/identity/AuthService.js';
 import { OllamaService } from './application/llm/OllamaService.js';
 import { McpRegistry } from './application/mcp/McpRegistry.js';
+import { MemoryService } from './application/memory/MemoryService.js';
 import { PersonaService } from './application/persona/PersonaService.js';
 import { DeviceHub } from './application/rooms/DeviceHub.js';
 import { RoomService } from './application/rooms/RoomService.js';
@@ -20,6 +22,7 @@ import { DrizzleConversationRepository } from './infrastructure/db/repositories/
 import { DrizzleIdentityRepository } from './infrastructure/db/repositories/DrizzleIdentityRepository.js';
 import { DrizzleLlmRepository } from './infrastructure/db/repositories/DrizzleLlmRepository.js';
 import { DrizzleMcpRepository } from './infrastructure/db/repositories/DrizzleMcpRepository.js';
+import { DrizzleMemoryRepository } from './infrastructure/db/repositories/DrizzleMemoryRepository.js';
 import { DrizzlePersonaRepository } from './infrastructure/db/repositories/DrizzlePersonaRepository.js';
 import { DrizzleRoomRepository } from './infrastructure/db/repositories/DrizzleRoomRepository.js';
 import { DrizzleSystemRepository } from './infrastructure/db/repositories/DrizzleSystemRepository.js';
@@ -85,6 +88,14 @@ export async function createContainer(env: Env, overrides: ContainerOverrides = 
     logger,
     async (roomId) => (await roomRepository.findRoom(roomId))?.name ?? null,
   );
+  const memory = new MemoryService(
+    new DrizzleMemoryRepository(db),
+    ollama,
+    rooms,
+    settings,
+    logger,
+  );
+  const homeContext = new HomeContextService(registry, logger);
   const agent = new AgentService(
     new DrizzleConversationRepository(db),
     ollama,
@@ -92,6 +103,8 @@ export async function createContainer(env: Env, overrides: ContainerOverrides = 
     personas,
     rooms,
     cache,
+    memory,
+    homeContext,
     settings,
     bus,
     logger,
@@ -164,6 +177,7 @@ export async function createContainer(env: Env, overrides: ContainerOverrides = 
     widgets,
     personas,
     cache,
+    memory,
     agent,
     voice,
     system,

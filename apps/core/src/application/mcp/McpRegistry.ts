@@ -15,7 +15,11 @@ import type {
   McpServerRecord,
   McpToolRecord,
 } from '../../domain/mcp/repositories/McpRepository.js';
-import { defaultPolicy, resolvePolicy } from '../../domain/mcp/services/toolPolicy.js';
+import {
+  defaultPolicy,
+  isContextTool,
+  resolvePolicy,
+} from '../../domain/mcp/services/toolPolicy.js';
 import type { Logger } from '../../domain/system/Logger.js';
 import type { Vault } from '../../domain/system/Vault.js';
 import { AppError, errorMessage, notFound } from '../../shared/errors.js';
@@ -302,6 +306,7 @@ export class McpRegistry {
           policy: defaultPolicy(tool.name),
           cacheEnabled: true,
           cacheTtlSeconds: null,
+          contextSource: null,
           roomOverrides: [],
         });
       } else if (existing.schemaHash !== hash) {
@@ -343,7 +348,10 @@ export class McpRegistry {
 
   async listTools(serverId?: string): Promise<McpTool[]> {
     const tools = await this.repository.listTools(serverId);
-    return tools.map(({ schemaHash: _hash, ...tool }) => tool);
+    return tools.map(({ schemaHash: _hash, ...tool }) => ({
+      ...tool,
+      contextSource: isContextTool(tool),
+    }));
   }
 
   getTool(id: string) {

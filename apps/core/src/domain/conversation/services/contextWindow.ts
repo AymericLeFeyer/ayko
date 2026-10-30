@@ -22,7 +22,7 @@ export function fitHistory(
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index];
     if (!message) continue;
-    used += estimateTokens(message.content);
+    used += estimateTokens(message.content + JSON.stringify(message.toolCalls ?? ''));
     if (used > budget) break;
     kept.unshift(message);
   }

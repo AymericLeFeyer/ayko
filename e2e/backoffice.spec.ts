@@ -50,6 +50,7 @@ test('every screen renders without a client error', async ({ page }) => {
     ['Pièces et tablettes', 'Pièces et tablettes'],
     ['Voix', 'Voix'],
     ['Historique', 'Historique'],
+    ['Souvenirs', 'Souvenirs'],
     ['Raccourcis', 'Raccourcis'],
     ['Réglages', 'Réglages'],
   ];
