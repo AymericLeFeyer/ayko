@@ -1,5 +1,10 @@
 # Ayko Core, with the backoffice built in (see DECISIONS.md).
-FROM node:24-bookworm-slim AS build
+FROM node:24-bookworm-slim AS toolchain
+# better-sqlite3 may compile from source; none of this reaches the final image.
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
+
+FROM toolchain AS build
 WORKDIR /app
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY packages/contracts/package.json packages/contracts/
@@ -10,7 +15,7 @@ COPY packages packages
 COPY apps apps
 RUN npm run build
 
-FROM node:24-bookworm-slim AS deps
+FROM toolchain AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages/contracts/package.json packages/contracts/

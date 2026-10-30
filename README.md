@@ -47,13 +47,13 @@ AYKO_MOCK=true npm run dev
 
 The backoffice runs on <http://localhost:5173> and proxies to Core on port 3100.
 
-| Command            | Purpose                                 |
-| ------------------ | --------------------------------------- |
-| `npm test`         | Unit and integration tests of Core      |
-| `npm run test:e2e` | Playwright journey (needs `npm run build`) |
-| `npm run lint`     | ESLint                                  |
-| `npm run format`   | Prettier                                |
-| `npm run typecheck`| TypeScript strict on every workspace    |
+| Command             | Purpose                                    |
+| ------------------- | ------------------------------------------ |
+| `npm test`          | Unit and integration tests of Core         |
+| `npm run test:e2e`  | Playwright journey (needs `npm run build`) |
+| `npm run lint`      | ESLint                                     |
+| `npm run format`    | Prettier                                   |
+| `npm run typecheck` | TypeScript strict on every workspace       |
 
 ## Configuration
 
@@ -62,14 +62,14 @@ Everything is configured in the backoffice. Only startup values live in the envi
 
 ## Status
 
-| Phase                  | State                                                                 |
-| ---------------------- | --------------------------------------------------------------------- |
-| 0. Foundations         | Done                                                                  |
-| 1. Ollama and text chat | Done, verified against the fake Ollama only                          |
-| 2. MCP and tool calling | Done, verified against the fake MCP server only                      |
-| 3. Display v1          | Not started. Core side ready: pairing, `/ws/display`, remote commands |
-| 4. Persona and context | Backoffice side done. Tablet side and calendar widgets wait for Display |
-| 5. Voice               | Out of scope. Contracts, slots and configuration screen are ready     |
+| Phase                   | State                                                                   |
+| ----------------------- | ----------------------------------------------------------------------- |
+| 0. Foundations          | Done                                                                    |
+| 1. Ollama and text chat | Done, verified against the fake Ollama only                             |
+| 2. MCP and tool calling | Done, verified against the fake MCP server only                         |
+| 3. Display v1           | Not started. Core side ready: pairing, `/ws/display`, remote commands   |
+| 4. Persona and context  | Backoffice side done. Tablet side and calendar widgets wait for Display |
+| 5. Voice                | Out of scope. Contracts, slots and configuration screen are ready       |
 
 ### Still to validate on real hardware
 

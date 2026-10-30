@@ -15,17 +15,17 @@ Interface en français ; code, commentaires, API et commits en anglais.
 
 ## Domaines Core (`apps/core/src`)
 
-| Domaine        | Service (`application/`)      | Interfaces (`domain/`)                        |
-| -------------- | ----------------------------- | --------------------------------------------- |
-| identity       | `AuthService`                 | `IdentityRepository`                          |
-| llm            | `OllamaService`               | `LlmProvider`, `LlmRepository`                |
-| mcp            | `McpRegistry`                 | `McpConnection`, `McpRepository`              |
-| persona        | `PersonaService`              | `PersonaRepository`, `renderPrompt`           |
-| rooms          | `RoomService`, `DeviceHub`    | `RoomRepository`                              |
-| conversation   | `AgentService`                | `ConversationRepository`, `fitHistory`        |
-| cache          | `CacheService`                | `CacheRepository`, `normalizeText`            |
-| voice          | `VoiceService`                | `VoiceEngine`, `VoiceRepository`              |
-| system         | `SystemService`, `SettingsService`, `EventBus` | `SystemRepository`, `Vault`, `Logger` |
+| Domaine      | Service (`application/`)                       | Interfaces (`domain/`)                 |
+| ------------ | ---------------------------------------------- | -------------------------------------- |
+| identity     | `AuthService`                                  | `IdentityRepository`                   |
+| llm          | `OllamaService`                                | `LlmProvider`, `LlmRepository`         |
+| mcp          | `McpRegistry`                                  | `McpConnection`, `McpRepository`       |
+| persona      | `PersonaService`                               | `PersonaRepository`, `renderPrompt`    |
+| rooms        | `RoomService`, `DeviceHub`                     | `RoomRepository`                       |
+| conversation | `AgentService`                                 | `ConversationRepository`, `fitHistory` |
+| cache        | `CacheService`                                 | `CacheRepository`, `normalizeText`     |
+| voice        | `VoiceService`                                 | `VoiceEngine`, `VoiceRepository`       |
+| system       | `SystemService`, `SettingsService`, `EventBus` | `SystemRepository`, `Vault`, `Logger`  |
 
 `AgentService.run(input, emit)` : exécute une requête jusqu'au bout, émet des `AgentEvent`, ne rejette jamais.
 `container.ts` est le seul endroit qui câble les implémentations.
@@ -37,21 +37,21 @@ Endpoints : tableau complet dans `docs/contracts.md`.
 Client léger : types dans `@ayko/contracts`, appels dans `infrastructure/api.ts`, pas de `fetch` ailleurs.
 Design system : shadcn/ui uniquement, couleurs en variables dans `presentation/styles.css`.
 
-| Route             | Page                    | Route          | Page               |
-| ----------------- | ----------------------- | -------------- | ------------------ |
-| `/`               | `DashboardPage`         | `/pieces`      | `RoomsPage`        |
-| `/ollama`         | `OllamaPage`            | `/voix`        | `VoicePage`        |
-| `/mcp`            | `McpPage`               | `/historique`  | `HistoryPage`      |
-| `/mcp/:id`        | `McpServerPage`         | `/raccourcis`  | `CachePage`        |
-| `/personas`       | `PersonasPage`          | `/journaux`    | `LogsPage`         |
-| `/terrain-de-jeu` | `PlaygroundPage`        | `/reglages`    | `SettingsPage`     |
-| `/conversations`  | `ConversationsPage`     | `/traces/:id`  | `TracePage`        |
+| Route             | Page                | Route         | Page           |
+| ----------------- | ------------------- | ------------- | -------------- |
+| `/`               | `DashboardPage`     | `/pieces`     | `RoomsPage`    |
+| `/ollama`         | `OllamaPage`        | `/voix`       | `VoicePage`    |
+| `/mcp`            | `McpPage`           | `/historique` | `HistoryPage`  |
+| `/mcp/:id`        | `McpServerPage`     | `/raccourcis` | `CachePage`    |
+| `/personas`       | `PersonasPage`      | `/journaux`   | `LogsPage`     |
+| `/terrain-de-jeu` | `PlaygroundPage`    | `/reglages`   | `SettingsPage` |
+| `/conversations`  | `ConversationsPage` | `/traces/:id` | `TracePage`    |
 
-| Hook               | Rôle                                                       |
-| ------------------ | ---------------------------------------------------------- |
-| `useAdminSocket`   | Lien `/ws/admin`, invalide les requêtes par sujet          |
-| `useAction`        | Mutation avec toast et invalidation                        |
-| `usePlaygroundRun` | Orchestration du flux `/chat`                              |
+| Hook               | Rôle                                              |
+| ------------------ | ------------------------------------------------- |
+| `useAdminSocket`   | Lien `/ws/admin`, invalide les requêtes par sujet |
+| `useAction`        | Mutation avec toast et invalidation               |
+| `usePlaygroundRun` | Orchestration du flux `/chat`                     |
 
 ## Patterns
 

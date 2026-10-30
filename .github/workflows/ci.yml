@@ -28,3 +28,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t ayko-core .
+      - name: Start the image in mock mode and check /health
+        run: |
+          docker run -d --name ayko -p 3100:3100 -e AYKO_MOCK=true ayko-core
+          for attempt in $(seq 1 30); do
+            if curl -fs http://localhost:3100/health; then
+              curl -fs http://localhost:3100/ | grep -q '<div id="root">'
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs ayko
+          exit 1

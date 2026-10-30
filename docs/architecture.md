@@ -10,24 +10,24 @@ Display (future) ──── /ws/display ──► Ayko Core ──► Ollama (
 
 ## Repository
 
-| Path                 | Content                                        |
-| -------------------- | ---------------------------------------------- |
-| `packages/contracts` | Zod schemas shared by all apps                 |
-| `apps/core`          | Engine and API                                 |
-| `apps/backoffice`    | Admin interface, served by Core in production  |
-| `apps/core/drizzle`  | Versioned SQL migrations, applied at startup   |
-| `apps/core/mock`     | Fake MCP server of mock mode                   |
-| `e2e`                | Playwright journey                             |
+| Path                 | Content                                       |
+| -------------------- | --------------------------------------------- |
+| `packages/contracts` | Zod schemas shared by all apps                |
+| `apps/core`          | Engine and API                                |
+| `apps/backoffice`    | Admin interface, served by Core in production |
+| `apps/core/drizzle`  | Versioned SQL migrations, applied at startup  |
+| `apps/core/mock`     | Fake MCP server of mock mode                  |
+| `e2e`                | Playwright journey                            |
 
 ## Core layers
 
-| Layer             | Role                                                                    |
-| ----------------- | ----------------------------------------------------------------------- |
-| `domain/`         | Provider and repository interfaces, pure rules (policy, normalisation)  |
-| `application/`    | Services orchestrating the domain                                       |
-| `infrastructure/` | SQLite, Ollama, MCP SDK, AES vault, fakes                               |
-| `presentation/`   | Fastify routes and WebSocket handlers                                   |
-| `container.ts`    | Composition root: the only place wiring implementations                 |
+| Layer             | Role                                                                   |
+| ----------------- | ---------------------------------------------------------------------- |
+| `domain/`         | Provider and repository interfaces, pure rules (policy, normalisation) |
+| `application/`    | Services orchestrating the domain                                      |
+| `infrastructure/` | SQLite, Ollama, MCP SDK, AES vault, fakes                              |
+| `presentation/`   | Fastify routes and WebSocket handlers                                  |
+| `container.ts`    | Composition root: the only place wiring implementations                |
 
 Replaceable providers: `LlmProvider`, `McpConnection`, `VoiceEngine`, repositories, `Vault`.
 
