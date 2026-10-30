@@ -11,7 +11,8 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "npm run build -w @ayko/contracts && concurrently -n core,bo -c cyan,magenta \"npm run dev -w @ayko/core\" \"npm run dev -w @ayko/backoffice\"",
+    "dev": "npm run build -w @ayko/contracts && concurrently --kill-others-on-fail -n core,bo -c cyan,magenta \"npm run dev -w @ayko/core\" \"npm run dev -w @ayko/backoffice\"",
+    "dev:mock": "npm run build -w @ayko/contracts && cross-env AYKO_MOCK=true concurrently --kill-others-on-fail -n core,bo -c cyan,magenta \"npm run dev -w @ayko/core\" \"npm run dev -w @ayko/backoffice\"",
     "build": "npm run build -w @ayko/contracts && npm run build -w @ayko/core && npm run build -w @ayko/backoffice",
     "typecheck": "npm run build -w @ayko/contracts && npm run typecheck --workspaces --if-present",
     "test": "npm run build -w @ayko/contracts && vitest run",
@@ -24,6 +25,7 @@
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.64.1",
     "concurrently": "^10.0.6",
+    "cross-env": "^10.1.0",
     "eslint": "^10.14.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.9.10",

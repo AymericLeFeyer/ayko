@@ -13,8 +13,10 @@ interface) is not built yet; Core already exposes what it needs (`/ws/display`, 
 Mock mode serves demo rooms, a fake Ollama and a fake MCP server.
 
 ```bash
-AYKO_MOCK=true docker compose up --build
+docker compose up --build
 ```
+
+with `AYKO_MOCK=true` in `.env`.
 
 Open <http://localhost:3100>, create the admin account, then go to **Terrain de jeu** and ask
 « Allume la lumière du salon ».
@@ -41,9 +43,11 @@ Requires Node 22 or later.
 
 ```bash
 npm install
-npm run build
-AYKO_MOCK=true npm run dev
+npm run dev:mock
 ```
+
+`npm run dev:mock` works in any shell and needs no configuration. `npm run dev` uses your real
+setup: it needs a `.env` with `AYKO_MASTER_KEY`, and stops with that error otherwise.
 
 The backoffice runs on <http://localhost:5173> and proxies to Core on port 3100.
 
