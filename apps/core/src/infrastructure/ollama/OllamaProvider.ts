@@ -53,16 +53,28 @@ const toWireMessage = (message: LlmMessage) => ({
 export class OllamaProvider implements LlmProvider {
   constructor(private readonly config: LlmEndpointConfig) {}
 
-  private async request(path: string, init: RequestInit = {}): Promise<Response> {
+  /**
+   * For calls that load a model: Ollama sends no response header until the model is in
+   * memory, which takes minutes on a CPU. Reachability is checked first under the
+   * connection timeout; the call itself is only bound by the caller's signal.
+   */
+  private async modelRequest(path: string, init: RequestInit): Promise<Response> {
+    await this.request('/api/version', { signal: init.signal });
+    return this.request(path, init, false);
+  }
+
+  private async request(path: string, init: RequestInit = {}, timed = true): Promise<Response> {
     const controller = new AbortController();
     const parent = init.signal;
     if (parent?.aborted) controller.abort(parent.reason);
     parent?.addEventListener('abort', () => controller.abort(parent.reason), { once: true });
-    // The timeout only guards the connection: a CPU model can take minutes to stream.
-    const timer = setTimeout(
-      () => controller.abort(new Error(`Ollama: délai de connexion dépassé (${this.config.url})`)),
-      this.config.connectTimeoutMs,
-    );
+    const timer = timed
+      ? setTimeout(
+          () =>
+            controller.abort(new Error(`Ollama: délai de connexion dépassé (${this.config.url})`)),
+          this.config.connectTimeoutMs,
+        )
+      : undefined;
     let response: Response;
     try {
       response = await fetch(`${this.config.url.replace(/\/$/, '')}${path}`, {
@@ -171,7 +183,7 @@ export class OllamaProvider implements LlmProvider {
   }
 
   async *pull(name: string, signal?: AbortSignal): AsyncGenerator<PullProgress> {
-    const response = await this.request('/api/pull', {
+    const response = await this.modelRequest('/api/pull', {
       method: 'POST',
       body: JSON.stringify({ model: name, stream: true }),
       signal,
@@ -194,7 +206,7 @@ export class OllamaProvider implements LlmProvider {
       ...(params?.topP != null ? { top_p: params.topP } : {}),
       ...(params?.maxTokens != null ? { num_predict: params.maxTokens } : {}),
     };
-    const response = await this.request('/api/chat', {
+    const response = await this.modelRequest('/api/chat', {
       method: 'POST',
       signal,
       body: JSON.stringify({
@@ -235,7 +247,7 @@ export class OllamaProvider implements LlmProvider {
   }
 
   async embed(model: string, text: string, signal?: AbortSignal) {
-    const response = await this.request('/api/embed', {
+    const response = await this.modelRequest('/api/embed', {
       method: 'POST',
       body: JSON.stringify({ model, input: text }),
       signal,
