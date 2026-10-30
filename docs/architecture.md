@@ -48,7 +48,7 @@ calls and traces.
 
 ## Resilience
 
-- MCP: automatic reconnection with exponential backoff, up to 60 s. Ping every 15 s.
+- MCP: one connection attempt, then the admin reconnects by hand. Ping every 15 s.
 - Ollama: health check every 30 s, failover across endpoints by priority, healthy ones first.
 - A failing router, embedding model or cache replay never fails the request.
 - Retention job every hour for logs, traces and history.

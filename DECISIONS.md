@@ -61,6 +61,10 @@ minutes. The total request timeout covers the rest.
 
 **Failover before the first chunk only.** A started stream cannot be resumed elsewhere.
 
+**No automatic MCP reconnection**, unlike what the specification asks. Home Assistant banned the
+IP after three refused tokens in a few seconds. Core makes one attempt, then the backoffice offers
+a Reconnect button.
+
 **Closing the playground cancels the request**: a CPU model should not work for nobody.
 
 ## Shortcut cache

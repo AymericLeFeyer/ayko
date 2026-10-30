@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { toast } from 'sonner';
 import type { McpServer, McpServerInput, McpTemplate, McpTransport } from '@ayko/contracts';
 import { mcpApi } from '@/infrastructure/api';
 import {
@@ -137,7 +138,7 @@ export function ServerDialog(props: {
               </Field>
               <KeyValueEditor
                 label="En-têtes"
-                hint="Chiffrés. Remplir cette liste remplace les valeurs enregistrées."
+                hint="Chiffrés. Remplir cette liste remplace les valeurs enregistrées. Pour un jeton, la valeur s'écrit « Bearer » suivi du jeton."
                 keyPlaceholder="Authorization"
                 existingKeys={server?.headerNames ?? []}
                 value={headers}
@@ -159,6 +160,17 @@ export function ServerDialog(props: {
   );
 }
 
+/** The only way back after a failure: Core never reconnects on its own. */
+export function useReconnect() {
+  return useAction((id: string) => mcpApi.restart(id), {
+    invalidate: ['mcp'],
+    onDone: (server) => {
+      if (server.status === 'connected') toast.success(`${server.name} connecté`);
+      else toast.error(server.lastError ?? `${server.name} ne répond pas`);
+    },
+  });
+}
+
 export function McpPage() {
   const servers = useQuery({
     queryKey: ['mcp', 'servers'],
@@ -173,10 +185,7 @@ export function McpPage() {
       mcpApi.updateServer(input.id, { enabled: input.enabled }),
     { invalidate: ['mcp'] },
   );
-  const restart = useAction((id: string) => mcpApi.restart(id), {
-    success: 'Serveur redémarré',
-    invalidate: ['mcp'],
-  });
+  const reconnect = useReconnect();
 
   return (
     <>
@@ -250,8 +259,13 @@ export function McpPage() {
                       />
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="outline" size="sm" onClick={() => restart.mutate(server.id)}>
-                        Redémarrer
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!server.enabled || reconnect.isPending}
+                        onClick={() => reconnect.mutate(server.id)}
+                      >
+                        Reconnecter
                       </Button>
                     </TableCell>
                   </TableRow>

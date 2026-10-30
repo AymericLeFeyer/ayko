@@ -32,7 +32,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/presentation/compone
 import { Textarea } from '@/presentation/components/ui/textarea';
 import { useAction } from '@/presentation/hooks/useAction';
 import { formatMs } from '@/shared/format';
-import { ServerDialog } from './McpPage';
+import { ServerDialog, useReconnect } from './McpPage';
 
 const POLICY_LABELS: Record<ToolPolicy, string> = {
   auto: 'Automatique',
@@ -275,6 +275,7 @@ export function McpServerPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
+  const reconnect = useReconnect();
   const servers = useQuery({ queryKey: ['mcp', 'servers'], queryFn: mcpApi.servers });
   const explorer = useQuery({
     queryKey: ['mcp', 'explore', id],
@@ -294,6 +295,14 @@ export function McpServerPage() {
         title={server?.name ?? 'Serveur MCP'}
         actions={
           <>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!server?.enabled || reconnect.isPending}
+              onClick={() => reconnect.mutate(id)}
+            >
+              Reconnecter
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setEditing(true)} disabled={!server}>
               Modifier
             </Button>

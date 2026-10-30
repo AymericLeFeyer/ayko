@@ -18,7 +18,6 @@ import type {
 import { defaultPolicy, resolvePolicy } from '../../domain/mcp/services/toolPolicy.js';
 import type { Logger } from '../../domain/system/Logger.js';
 import type { Vault } from '../../domain/system/Vault.js';
-import { sleep } from '../../shared/async.js';
 import { AppError, errorMessage, notFound } from '../../shared/errors.js';
 import type { EventBus } from '../system/EventBus.js';
 
@@ -47,7 +46,6 @@ export interface CallContext {
   signal?: AbortSignal;
 }
 
-const MAX_BACKOFF_MS = 60_000;
 const RESULT_LOG_MAX = 20_000;
 
 const schemaHash = (description: string | null, schema: unknown) =>
@@ -235,51 +233,49 @@ export class McpRegistry {
     if (!server?.enabled) return;
     const state = this.state(id);
     state.generation += 1;
-    await this.connectLoop(server, state.generation);
+    await this.connect(server, state.generation);
   }
 
-  /** Retries with exponential backoff until connected, stopped or superseded. */
-  private async connectLoop(server: McpServerRecord, generation: number) {
+  /**
+   * One attempt only: reconnecting is the admin's call. Automatic retries can get an IP
+   * banned by a server such as Home Assistant when a token is refused.
+   */
+  private async connect(server: McpServerRecord, generation: number) {
     const state = this.state(server.id);
     const current = () => !this.closing && state.generation === generation;
-    let delay = 1000;
-    while (current()) {
-      this.setStatus(server.id, 'connecting', state.lastError);
-      try {
-        const connection = this.createConnection({
-          transport: server.transport,
-          command: server.command,
-          args: server.args,
-          url: server.url,
-          env: await this.vault.read(server.envSecretId),
-          headers: await this.vault.read(server.headersSecretId),
-        });
-        await connection.connect();
-        if (!current()) {
-          await connection.close().catch(() => {});
-          return;
-        }
-        connection.onClose((reason) => {
-          if (!current()) return;
-          state.connection = null;
-          this.logger.log('warn', 'mcp', `${server.name} déconnecté`, { data: { reason } });
-          void this.connectLoop(server, generation);
-        });
-        connection.onToolsChanged(() => void this.syncTools(server.id, connection));
-        state.connection = connection;
-        await this.syncTools(server.id, connection);
-        await this.measure(server.id);
-        this.setStatus(server.id, 'connected');
-        this.logger.log('info', 'mcp', `${server.name} connecté`);
+    this.setStatus(server.id, 'connecting');
+    try {
+      const connection = this.createConnection({
+        transport: server.transport,
+        command: server.command,
+        args: server.args,
+        url: server.url,
+        env: await this.vault.read(server.envSecretId),
+        headers: await this.vault.read(server.headersSecretId),
+      });
+      await connection.connect();
+      if (!current()) {
+        await connection.close().catch(() => {});
         return;
-      } catch (error) {
-        const message = errorMessage(error);
-        state.connection = null;
-        this.setStatus(server.id, 'error', message);
-        this.logger.log('error', 'mcp', `${server.name} : ${message}`);
       }
-      await sleep(delay);
-      delay = Math.min(delay * 2, MAX_BACKOFF_MS);
+      connection.onClose((reason) => {
+        if (!current()) return;
+        state.connection = null;
+        state.latencyMs = null;
+        this.setStatus(server.id, 'error', reason ?? 'Connexion perdue');
+        this.logger.log('warn', 'mcp', `${server.name} déconnecté`, { data: { reason } });
+      });
+      connection.onToolsChanged(() => void this.syncTools(server.id, connection));
+      state.connection = connection;
+      await this.syncTools(server.id, connection);
+      await this.measure(server.id);
+      this.setStatus(server.id, 'connected');
+      this.logger.log('info', 'mcp', `${server.name} connecté`);
+    } catch (error) {
+      const message = errorMessage(error);
+      state.connection = null;
+      this.setStatus(server.id, 'error', message);
+      this.logger.log('error', 'mcp', `${server.name} : ${message}`);
     }
   }
 
