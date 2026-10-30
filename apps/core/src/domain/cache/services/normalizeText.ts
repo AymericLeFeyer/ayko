@@ -30,6 +30,7 @@ const VERB_FORMS = new Map<string, string>([
   ...['allumer', 'fermer', 'baisser', 'monter', 'lancer', 'arreter', 'demarrer'].flatMap(erVerb),
   ...['activer', 'desactiver', 'regler', 'augmenter', 'diminuer', 'tamiser'].flatMap(erVerb),
   ...['verrouiller', 'deverrouiller', 'couper', 'donner', 'afficher', 'montrer'].flatMap(erVerb),
+  ...['illuminer', 'eclairer'].flatMap(erVerb),
   ...conjugations('ouvrir', 'ouvre ouvres ouvrez ouvrons ouvrent ouvrir ouvrirais ouvert'),
   ...conjugations('eteindre', 'eteins eteint eteignez eteignons eteindre eteindrais'),
   ...conjugations('descendre', 'descends descend descendez descendons descendre'),
@@ -64,6 +65,21 @@ const AMBIGUOUS = [
   /\b(ca|cela|celui|celle|ceux|ici|la bas)\b/,
 ];
 const OPEN_QUESTION = /\b(pourquoi|comment|explique|raconte|c est quoi|qu est ce|que penses)\b/;
+
+const ACTION_VERBS = new Set(
+  `allumer eteindre ouvrir fermer baisser monter descendre lancer arreter demarrer activer
+  desactiver regler augmenter diminuer tamiser verrouiller deverrouiller couper mettre illuminer
+  eclairer`.split(/\s+/),
+);
+
+/** True when the user asks to change something, as opposed to asking about it. */
+export function isActionRequest(text: string): boolean {
+  const plain = stripAccents(text.toLowerCase()).replace(/[’']/g, ' ');
+  if (OPEN_QUESTION.test(plain)) return false;
+  const tokens = normalizeText(text).split(' ');
+  // "la lampe est allumée" uses the verb as a state.
+  return !tokens.includes('etre') && tokens.some((token) => ACTION_VERBS.has(token));
+}
 
 /** Context-dependent or open requests are never cached (spec 4.9). */
 export function isCacheableText(text: string): boolean {

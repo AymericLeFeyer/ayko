@@ -204,6 +204,23 @@ export class FakeOllama {
     return sendJson(response, { error: 'not found' }, 404);
   }
 
+  /** Reproduces real models: read a state, then claim an action they never ran. */
+  private scriptedFalseSuccess(messages: WireMessage[], last: WireMessage | undefined) {
+    const said = (pattern: RegExp) =>
+      messages.some((message) => message.role === 'user' && pattern.test(message.content));
+    const stubborn = said(/menteur/);
+    if (!stubborn && !said(/hésitant/)) return null;
+    // Back from the action it was reminded of: the normal answer reports the real result.
+    if (!stubborn && last?.role === 'tool' && said(/^\[Rappel\]/)) return null;
+    if (last?.content.startsWith('[Rappel]') && !stubborn) {
+      return { call: { name: 'light_turn_on', arguments: { room: 'atelier' } } };
+    }
+    if (last?.role === 'tool' || last?.content.startsWith('[Rappel]')) {
+      return { text: "C'est fait, je l'allume !" };
+    }
+    return { call: { name: 'get_temperature', arguments: { room: 'atelier' } } };
+  }
+
   private async pull(request: IncomingMessage, response: ServerResponse) {
     const { model: rawName } = await readJson<{ model: string }>(request);
     const name = rawName.includes(':') ? rawName : `${rawName}:latest`;
@@ -242,6 +259,17 @@ export class FakeOllama {
     const last = body.messages[body.messages.length - 1];
     const lastUser = [...body.messages].reverse().find((message) => message.role === 'user');
     const started = performance.now();
+    const scripted = this.scriptedFalseSuccess(body.messages, last);
+    if (scripted?.call) {
+      writeLine(response, { message: { content: '', tool_calls: [{ function: scripted.call }] } });
+      writeLine(response, { done: true, eval_count: 12, eval_duration: 100_000_000 });
+      return response.end();
+    }
+    if (scripted?.text) {
+      writeLine(response, { message: { content: scripted.text } });
+      writeLine(response, { done: true, eval_count: 3, eval_duration: 100_000_000 });
+      return response.end();
+    }
     if (last?.role === 'user' && body.tools?.length) {
       const call = decide(last.content, body.tools);
       if (call) {

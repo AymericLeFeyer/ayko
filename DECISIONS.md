@@ -49,6 +49,12 @@ call is held back so JSON never reaches the screen. The backoffice flags each mo
 conversation, for a small gain on short home requests. Recent messages are kept up to 75 % of
 `num_ctx`, using a 3.5 characters per token estimate; the rest is reserved for the answer.
 
+**A claimed action is checked, not trusted.** Real models read a device, then write "c'est fait"
+without calling the tool that acts. When the request is an action and no acting tool has run, the
+text stays off screen and the model is reminded once; after that Ayko says plainly that nothing was
+done. This costs streaming on the turns before the action, which is the price of never showing a
+false success. Reads alone also never teach an action shortcut.
+
 **One gate for every tool execution.** LLM calls and cache replays go through
 `AgentService.executeTool`, where the policy is resolved again. A model cannot reach a forbidden
 tool by inventing its name, and a replay cannot skip a confirmation.

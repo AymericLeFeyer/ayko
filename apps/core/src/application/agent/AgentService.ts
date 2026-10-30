@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { AgentEvent, ModelParams, StepKind, StepStatus } from '@ayko/contracts';
 import type { ConversationRepository } from '../../domain/conversation/repositories/ConversationRepository.js';
+import { isActionRequest } from '../../domain/cache/services/normalizeText.js';
 import { fitHistory } from '../../domain/conversation/services/contextWindow.js';
 import type { CacheEntryRecord } from '../../domain/cache/repositories/CacheRepository.js';
 import type { LlmMessage, LlmTool, LlmToolCall } from '../../domain/llm/LlmProvider.js';
@@ -37,6 +38,14 @@ export interface AgentInput {
 }
 
 const DEFAULT_NUM_CTX = 4096;
+const ACTION_CLAUSE =
+  "Pour agir sur la maison, tu dois appeler l'outil correspondant. Lire l'état d'un appareil " +
+  "ne le change pas. N'annonce jamais qu'une action est faite sans le résultat de son outil.";
+const ACTION_REMINDER =
+  "[Rappel] Tu n'as appelé aucun outil d'action, donc rien n'a été fait. Appelle maintenant " +
+  "l'outil qui exécute la demande, ou explique pourquoi c'est impossible.";
+const ACTION_NOT_DONE =
+  "Je n'ai pas réussi à exécuter cette action, rien n'a été fait. Vérifie le nom de l'appareil.";
 const ROUTING_PROMPT =
   "Détermine si la demande suivante nécessite d'agir sur la maison ou de consulter une " +
   'information externe. Réponds par un seul mot : OUTILS ou DIRECT.';
@@ -53,6 +62,8 @@ interface Run {
   startedAt: number;
   calls: ExecutedCall[];
   anyToolFailed: boolean;
+  /** A tool able to change something was tried, whatever came of it. */
+  actionAttempted: boolean;
   ttftMs: number | null;
   outputTokens: number;
   evalDurationMs: number;
@@ -145,6 +156,7 @@ export class AgentService {
       startedAt: performance.now(),
       calls: [],
       anyToolFailed: false,
+      actionAttempted: false,
       ttftMs: null,
       outputTokens: 0,
       evalDurationMs: 0,
@@ -313,6 +325,7 @@ export class AgentService {
     args: Record<string, unknown>,
     source: 'llm' | 'cache',
   ): Promise<{ text: string; isError: boolean; declined: boolean }> {
+    if (!tool.readOnly) run.actionAttempted = true;
     const policy = this.registry.policyFor(tool, run.roomId);
     if (policy === 'forbidden') {
       run.anyToolFailed = true;
@@ -478,10 +491,12 @@ export class AgentService {
     const native =
       tools.length > 0 ? await this.ollama.supportsTools(model).catch(() => true) : true;
 
+    const canAct = exposed.some((item) => !item.tool.readOnly);
     const systemPrompt = [
       params.systemPrompt,
       rendered.prompt,
       contextBlock,
+      canAct ? ACTION_CLAUSE : null,
       native ? null : structuredToolPrompt(tools),
     ]
       .filter(Boolean)
@@ -505,7 +520,13 @@ export class AgentService {
       prompt: { messages, tools },
     });
 
+    // Models happily claim "c'est fait" after a mere read. While an action is owed, their
+    // text stays off screen, so a false success can be caught before anyone sees it.
+    const actionOwed = canAct && isActionRequest(run.input.text);
+    let reminded = false;
+
     for (let iteration = 0; iteration < agent.maxIterations; iteration += 1) {
+      const holdText = actionOwed && !run.actionAttempted;
       const step = await this.startStep(run, 'thinking', 'Réflexion');
       const { text, toolCalls } = await this.streamTurn(run, {
         model,
@@ -513,9 +534,22 @@ export class AgentService {
         messages,
         tools: native ? tools : [],
         structuredTools: native ? null : tools,
+        holdText,
       });
       await step.finish('done', { iteration, toolCalls });
-      if (toolCalls.length === 0) return text;
+      if (toolCalls.length === 0) {
+        if (!holdText) return text;
+        if (!reminded) {
+          reminded = true;
+          messages.push({ role: 'assistant', content: text });
+          messages.push({ role: 'user', content: ACTION_REMINDER });
+          continue;
+        }
+        const failed = await this.startStep(run, 'error', 'Aucune action exécutée', { text });
+        await failed.finish('error');
+        run.emit({ type: 'answer.delta', requestId: run.requestId, text: ACTION_NOT_DONE });
+        return ACTION_NOT_DONE;
+      }
       messages.push({
         role: 'assistant',
         content: text,
@@ -559,6 +593,7 @@ export class AgentService {
       messages: LlmMessage[];
       tools: LlmTool[];
       structuredTools: LlmTool[] | null;
+      holdText: boolean;
     },
   ) {
     const started = performance.now();
@@ -586,9 +621,8 @@ export class AgentService {
         }
         text += chunk.text;
         // Hold a possible JSON tool call back: it must never reach the screen.
-        if (!request.structuredTools || flushed > 0 || !mayBeStructuredCall(text)) {
-          flush(text.length);
-        }
+        const mayBeCall = request.structuredTools && flushed === 0 && mayBeStructuredCall(text);
+        if (!mayBeCall && !request.holdText) flush(text.length);
       } else if (chunk.type === 'thinking') {
         run.reasoning += chunk.text;
       } else if (chunk.type === 'tool_call') {
@@ -601,7 +635,7 @@ export class AgentService {
     if (request.structuredTools) {
       const call = flushed === 0 ? parseStructuredCall(text, request.structuredTools) : null;
       if (call) toolCalls.push(call);
-      else flush(text.length);
+      else if (!request.holdText) flush(text.length);
     }
     return { text, toolCalls };
   }

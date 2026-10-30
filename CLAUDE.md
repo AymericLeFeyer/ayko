@@ -85,6 +85,7 @@ Réglages de pièce ajoutés : `nightStart`, `nightEnd`, `lightMode`, `dashboard
 - MCP : aucune reconnexion automatique, volontairement (ban IP de Home Assistant après trois 401).
 
 - CPU et RAM d'Ollama : lus via node_exporter (`hostMetrics.ts`, `pollHostMetrics`, 5 s). L'API Ollama ne les donne pas. Le % CPU exige deux relevés.
+- Les modèles annoncent des actions non faites après une simple lecture : `llmLoop` retient le texte tant qu'aucun outil d'action n'a tourné (`isActionRequest`).
 - Windows : une commande Bash trop longue échoue (`ENAMETOOLONG`). Écrire les fichiers avec l'outil dédié.
 - `bash` seul lance WSL dans `launch.json` ; utiliser le chemin de Git Bash.
 - `contracts` se compile : relancer `npm run build -w @ayko/contracts` après modification, sinon Core et le backoffice voient l'ancienne version.

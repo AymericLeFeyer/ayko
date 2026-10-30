@@ -14,7 +14,11 @@ import type {
   CacheRepository,
   HistoryFilter,
 } from '../../domain/cache/repositories/CacheRepository.js';
-import { isCacheableText, normalizeText } from '../../domain/cache/services/normalizeText.js';
+import {
+  isActionRequest,
+  isCacheableText,
+  normalizeText,
+} from '../../domain/cache/services/normalizeText.js';
 import { cosineSimilarity } from '../../domain/cache/services/similarity.js';
 import type { McpToolRecord } from '../../domain/mcp/repositories/McpRepository.js';
 import { isNeverCached } from '../../domain/mcp/services/toolPolicy.js';
@@ -55,8 +59,12 @@ const keyFor = (normalized: string, roomId: string | null, global: boolean) =>
 const callsKey = (calls: { toolName: string; arguments: unknown }[]) =>
   JSON.stringify(calls.map((call) => [call.toolName, call.arguments]));
 
+/** A request to act can never be answered by reads alone: the entry learned a false success. */
+const provesNothing = (text: string, onlyReads: boolean) => onlyReads && isActionRequest(text);
+
 const usable = (entry: CacheEntryRecord) =>
-  entry.status === 'active' || entry.status === 'pinned' || entry.status === 'doubtful';
+  (entry.status === 'active' || entry.status === 'pinned' || entry.status === 'doubtful') &&
+  !provesNothing(entry.sampleText, entry.kind === 'read');
 
 export class CacheService {
   /** Top N in RAM: the instant path, avoiding even a SQLite read. */
@@ -235,6 +243,8 @@ export class CacheService {
   }) {
     const settings = await this.settings();
     if (!isCacheableText(input.text) || input.calls.length === 0) return;
+    const onlyReads = input.calls.every(({ tool }) => tool.readOnly);
+    if (provesNothing(input.text, onlyReads)) return;
     if (input.calls.some(({ tool }) => isNeverCached(tool.name) || !tool.cacheEnabled)) return;
     const normalized = normalizeText(input.text);
     if (!normalized) return;
