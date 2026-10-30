@@ -51,14 +51,17 @@ import { useAction } from '@/presentation/hooks/useAction';
 import { formatBytes, formatDate, formatMs, formatRate } from '@/shared/format';
 
 export function OllamaPage() {
+  const endpoints = useQuery({ queryKey: ['ollama', 'endpoints'], queryFn: ollamaApi.endpoints });
+  if (endpoints.isPending) return null;
   return (
     <>
-      <PageHeader title="Ollama" intro="Endpoints, modèles et rôles confiés à chacun." />
-      <Tabs defaultValue="models">
+      <PageHeader title="Ollama" intro="Serveurs Ollama, modèles et rôles confiés à chacun." />
+      {/* Nothing else works without a server, so a fresh install starts on that tab. */}
+      <Tabs defaultValue={endpoints.data?.length ? 'models' : 'endpoints'}>
         <TabsList className="mb-4">
+          <TabsTrigger value="endpoints">Endpoints</TabsTrigger>
           <TabsTrigger value="models">Modèles</TabsTrigger>
           <TabsTrigger value="roles">Rôles</TabsTrigger>
-          <TabsTrigger value="endpoints">Endpoints</TabsTrigger>
           <TabsTrigger value="test">Test de modèle</TabsTrigger>
         </TabsList>
         <TabsContent value="models">
