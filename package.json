@@ -1,0 +1,34 @@
+{
+  "name": "ayko",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "npm run build -w @ayko/contracts && concurrently -n core,bo -c cyan,magenta \"npm run dev -w @ayko/core\" \"npm run dev -w @ayko/backoffice\"",
+    "build": "npm run build -w @ayko/contracts && npm run build -w @ayko/core && npm run build -w @ayko/backoffice",
+    "typecheck": "npm run build -w @ayko/contracts && npm run typecheck --workspaces --if-present",
+    "test": "npm run build -w @ayko/contracts && vitest run",
+    "test:e2e": "playwright test",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.1",
+    "concurrently": "^10.0.6",
+    "eslint": "^10.14.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.9.10",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.1",
+    "vitest": "^5.0.5"
+  }
+}
