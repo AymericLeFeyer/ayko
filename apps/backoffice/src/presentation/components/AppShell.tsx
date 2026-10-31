@@ -42,6 +42,7 @@ const NAV: { title: string; items: NavItem[] }[] = [
     items: [
       { to: '/mcp', label: 'Serveurs MCP', watches: 'mcp' },
       { to: '/pieces', label: 'Pièces et tablettes', watches: 'rooms' },
+      { to: '/cameras', label: 'Caméras' },
       { to: '/voix', label: 'Voix' },
     ],
   },

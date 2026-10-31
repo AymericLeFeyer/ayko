@@ -63,6 +63,16 @@ test('a paired tablet shows home, streams answers and cards, and survives change
   await test.step('a card action works and an unknown block stays readable', async () => {
     await page.getByRole('button', { name: 'Éteindre' }).click();
     await expect(page.getByText('Bloc inconnu : salon dans le noir')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Allumer' })).toBeVisible();
+    await expect(page.locator('.satellite', { hasText: 'Lumière salon' })).toHaveCount(1);
+  });
+
+  await test.step('a card toggles in place, without a new exchange', async () => {
+    const card = page.locator('.satellite', { hasText: 'Lumière salon' });
+    await card.getByRole('button', { name: 'Allumer' }).click();
+    await expect(card.getByRole('button', { name: 'Éteindre' })).toBeVisible();
+    await expect(card).toHaveCount(1);
+    await expect(page.locator('.message-user')).toHaveCount(1);
   });
 
   await test.step('a long Markdown answer renders and scrolls', async () => {
@@ -93,6 +103,45 @@ test('a paired tablet shows home, streams answers and cards, and survives change
     await expect(page.locator('.markdown strong', { hasText: 'important' })).toBeAttached();
     await expect(page.getByRole('listitem').filter({ hasText: 'Tâche numéro 24' })).toBeAttached();
     expect(await list.innerText()).not.toContain('**');
+  });
+
+  await test.step('a camera opens as a card, goes full screen and comes back', async () => {
+    const say = async (text: string) => {
+      await page.getByLabel('Votre message').fill(text);
+      await page.getByRole('button', { name: 'Envoyer' }).click();
+    };
+    const loaded = (name: string) =>
+      expect
+        .poll(() =>
+          page.getByAltText(name).evaluate((image: HTMLImageElement) => image.naturalWidth),
+        )
+        .toBeGreaterThan(0);
+    const enlarge = page.getByRole('button', { name: 'Agrandir la caméra Porte' });
+    const reduce = page.getByRole('button', { name: 'Réduire la caméra Porte' });
+
+    await say('Montre-moi la porte');
+    await expect(enlarge).toBeVisible();
+    await loaded('Caméra Porte');
+    await expect(reduce).toBeHidden();
+
+    await enlarge.click();
+    await expect(reduce).toBeVisible();
+    await loaded('Caméra Porte');
+    await reduce.click();
+    await expect(reduce).toBeHidden();
+    await loaded('Caméra Porte');
+
+    const cameras = await json<{ id: string; name: string }[]>(api, 'cameras');
+    const porte = cameras.find((camera) => camera.name === 'Porte');
+    await api.patch(`cameras/${porte?.id}`, { data: { fullscreenByDefault: true } });
+    await say('Montre-moi la porte');
+    await expect(reduce).toBeVisible();
+    await reduce.click();
+
+    await say('Qui est devant la porte ?');
+    await expect(page.getByText('Je vois une personne avec un colis')).toBeVisible();
+    await expect(reduce).toBeHidden();
+    await expect(page.locator('.satellite', { hasText: 'Porte' })).toHaveCount(1);
   });
 
   await test.step('a sensitive tool asks Yes or No', async () => {

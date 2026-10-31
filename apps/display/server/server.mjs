@@ -16,6 +16,7 @@ const PROXIED = [
   /^\/api\/v1\/pairing\/request$/,
   /^\/api\/v1\/pairing\/[0-9a-f-]{36}$/,
   /^\/api\/v1\/device\/(config|widgets|reports)$/,
+  /^\/api\/v1\/device\/cameras\/[0-9a-f-]{36}\/(ticket|stream)$/,
 ];
 
 const TYPES = {
@@ -63,9 +64,14 @@ function proxy(request, response) {
       reply.pipe(response);
     },
   );
+  // A camera stream never ends by itself: it must stop with the one watching it.
+  response.once('close', () => upstream.destroy());
   upstream.on('error', () => {
+    if (response.headersSent) return response.destroy();
     response.writeHead(502, { 'content-type': 'application/json' });
-    response.end(JSON.stringify({ code: 'core_unavailable', message: 'Ayko Core ne répond pas' }));
+    return response.end(
+      JSON.stringify({ code: 'core_unavailable', message: 'Ayko Core ne répond pas' }),
+    );
   });
   request.pipe(upstream);
 }

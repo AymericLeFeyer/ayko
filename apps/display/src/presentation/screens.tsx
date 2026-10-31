@@ -70,17 +70,23 @@ export function HomeScreen(props: {
   );
 }
 
-function ActivityLog({ steps }: { steps: Step[] }) {
-  if (steps.length === 0) return null;
+/** One line only: the latest step, or the state of the screen before the first step. */
+function ActivityLine({ steps, status }: { steps: Step[]; status: string }) {
+  const step = steps.at(-1);
+  if (!step) {
+    return (
+      <p className="status" role="status">
+        {status}
+      </p>
+    );
+  }
   return (
     <ol className="log" aria-label="Ce qu'Ayko fait">
-      {steps.slice(-VISIBLE_STEPS).map((step) => (
-        <li key={step.stepId} className={`step step-${step.status}`}>
-          <span className="step-dot" />
-          {step.label}
-          {step.durationMs !== undefined && <small>{Math.round(step.durationMs)} ms</small>}
-        </li>
-      ))}
+      <li className={`step step-${step.status}`}>
+        <span className="step-dot" />
+        <span className="step-label">{step.label}</span>
+        {step.durationMs !== undefined && <small>{Math.round(step.durationMs)} ms</small>}
+      </li>
     </ol>
   );
 }
@@ -103,7 +109,6 @@ function ExchangeView({ exchange }: { exchange: Exchange }) {
   );
 }
 
-const VISIBLE_STEPS = 3;
 const END_MARGIN_PX = 80;
 const ACTIVITY_THROTTLE_MS = 1000;
 
@@ -230,10 +235,7 @@ export function ConversationScreen(props: {
         </div>
       </div>
       <div className="logs">
-        <p className="status" role="status">
-          {STATUS_LABEL[props.state]}
-        </p>
-        <ActivityLog steps={exchanges.at(-1)?.steps ?? []} />
+        <ActivityLine steps={exchanges.at(-1)?.steps ?? []} status={STATUS_LABEL[props.state]} />
       </div>
       <form className="composer" onSubmit={submit}>
         <button

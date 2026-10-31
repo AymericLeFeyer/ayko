@@ -48,6 +48,7 @@ test('every screen renders without a client error', async ({ page }) => {
     ['Conversations', 'Conversations'],
     ['Serveurs MCP', 'Serveurs MCP'],
     ['Pièces et tablettes', 'Pièces et tablettes'],
+    ['Caméras', 'Caméras'],
     ['Voix', 'Voix'],
     ['Historique', 'Historique'],
     ['Souvenirs', 'Souvenirs'],

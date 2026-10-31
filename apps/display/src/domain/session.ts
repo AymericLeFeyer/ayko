@@ -43,6 +43,8 @@ export interface Session {
   /** Satellites launched so far: gives each one its id and its slot. */
   launched: number;
   confirm: PendingConfirm | null;
+  /** The camera covering the screen; it stays in `satellites` as its card. */
+  focusedCamera: string | null;
   connected: boolean;
   requestId: string | null;
   /** Bumped on each keystroke so the orb can react to typing. */
@@ -59,7 +61,8 @@ export type SessionAction =
   | { type: 'activity' }
   | { type: 'sleep' }
   | { type: 'connection'; connected: boolean }
-  | { type: 'confirm.closed' };
+  | { type: 'confirm.closed' }
+  | { type: 'camera.focus'; cameraId: string | null };
 
 export const initialSession: Session = {
   screen: 'idle',
@@ -67,6 +70,7 @@ export const initialSession: Session = {
   satellites: [],
   launched: 0,
   confirm: null,
+  focusedCamera: null,
   connected: false,
   requestId: null,
   keystrokes: 0,
@@ -84,20 +88,37 @@ const patchLast = (session: Session, update: (exchange: Exchange) => Exchange): 
   ),
 });
 
-const entityName = ({ type, name }: Block) => (type === 'entity' ? name : undefined);
+/** What makes two blocks the same card, for those that can come back. */
+function cardKey({ type, name, cameraId }: Block) {
+  if (type === 'entity') return `entity:${String(name)}`;
+  return type === 'camera' ? `camera:${String(cameraId)}` : null;
+}
 
-/** A new state of the same device replaces its card; otherwise the oldest card leaves. */
+const focusAfter = (current: string | null, block: Block) => {
+  if (block.type !== 'camera') return current;
+  const cameraId = block.cameraId as string;
+  if (block.fullscreen) return cameraId;
+  return current === cameraId ? null : current;
+};
+
+/** A new state of the same device updates its card in place; otherwise the oldest card leaves. */
 function launch(session: Session, blocks: Block[]): Session {
-  let { satellites, launched } = session;
+  let { satellites, launched, focusedCamera } = session;
   for (const block of blocks) {
-    const name = entityName(block);
-    satellites = [
-      ...satellites.filter((item) => !name || entityName(item.block) !== name),
-      { id: launched, slot: launched % SATELLITE_SLOTS, block },
-    ].slice(-SATELLITE_SLOTS);
+    focusedCamera = focusAfter(focusedCamera, block);
+    const key = cardKey(block);
+    if (key && satellites.some((item) => cardKey(item.block) === key)) {
+      satellites = satellites.map((item) =>
+        cardKey(item.block) === key ? { ...item, block } : item,
+      );
+      continue;
+    }
+    satellites = [...satellites, { id: launched, slot: launched % SATELLITE_SLOTS, block }].slice(
+      -SATELLITE_SLOTS,
+    );
     launched += 1;
   }
-  return { ...session, satellites, launched };
+  return { ...session, satellites, launched, focusedCamera };
 }
 
 function applyFrame(session: Session, frame: DisplayServerMessage): Session {
@@ -188,6 +209,8 @@ export function sessionReducer(session: Session, action: SessionAction): Session
       return { ...initialSession, connected: session.connected };
     case 'confirm.closed':
       return { ...session, confirm: null };
+    case 'camera.focus':
+      return { ...session, focusedCamera: action.cameraId, activity: session.activity + 1 };
     case 'connection': {
       if (action.connected) return { ...session, connected: true };
       // An answer in flight cannot resume on a new socket: say so instead of waiting forever.

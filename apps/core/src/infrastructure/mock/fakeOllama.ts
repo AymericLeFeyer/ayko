@@ -12,6 +12,7 @@ interface WireMessage {
   role: string;
   content: string;
   tool_calls?: unknown[];
+  images?: string[];
 }
 
 interface WireTool {
@@ -24,6 +25,12 @@ const INITIAL_MODELS: FakeModel[] = [
     size: 2_100_000_000,
     capabilities: ['completion', 'tools'],
     family: 'llama',
+  },
+  {
+    name: 'mock-vision:latest',
+    size: 1_800_000_000,
+    capabilities: ['completion', 'vision'],
+    family: 'vision',
   },
   { name: 'mock-tiny:latest', size: 400_000_000, capabilities: ['completion'], family: 'tiny' },
   { name: 'mock-embed:latest', size: 270_000_000, capabilities: ['embedding'], family: 'bert' },
@@ -300,8 +307,9 @@ export class FakeOllama {
         return response.end();
       }
     }
-    const answer =
-      last?.role === 'tool'
+    const answer = last?.images?.length
+      ? 'Je vois une personne avec un colis devant la porte.'
+      : last?.role === 'tool'
         ? `C'est fait. ${last.content}`
         : /markdown/i.test(lastUser?.content ?? '')
           ? MARKDOWN_SAMPLE

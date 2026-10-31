@@ -379,6 +379,20 @@ export class McpRegistry {
     return (await this.listTools(tool.serverId)).find((item) => item.id === toolId);
   }
 
+  /** Addresses and secrets of the enabled HTTP servers, for what MCP does not cover. */
+  async httpEndpoints() {
+    const servers = await this.repository.listServers();
+    return Promise.all(
+      servers
+        .filter((server) => server.enabled && server.url)
+        .map(async (server) => ({
+          name: server.name,
+          url: server.url as string,
+          headers: await this.vault.read(server.headersSecretId),
+        })),
+    );
+  }
+
   /** Tools the LLM may see from a room, under stable and unique names. */
   async toolsFor(roomId: string | null): Promise<ExposedTool[]> {
     const tools = await this.repository.listTools();

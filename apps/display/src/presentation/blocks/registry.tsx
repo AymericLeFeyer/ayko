@@ -25,7 +25,7 @@ import {
   Tv,
 } from 'lucide-react';
 import { createContext, useContext, useEffect, useState, type ComponentType } from 'react';
-import { knownBlock, type Block, type KnownBlock } from '@ayko/contracts';
+import { knownBlock, type Block, type EntityAction, type KnownBlock } from '@ayko/contracts';
 import {
   entityKind,
   entityTone,
@@ -35,12 +35,18 @@ import {
   type WeatherKind,
 } from '@/domain/blockLook';
 import { Markdown } from '../Markdown';
+import { CameraCard } from './Camera';
 
 type OfType<T extends KnownBlock['type']> = Extract<KnownBlock, { type: T }>;
 type Registry = { [T in KnownBlock['type']]: ComponentType<{ block: OfType<T> }> };
 
 /** Lets a card send a message, such as the quick action of a device. */
-export const BlockActions = createContext<(text: string) => void>(() => {});
+export const BlockActions = createContext<(action: Pick<EntityAction, 'text' | 'call'>) => void>(
+  () => {},
+);
+
+/** Long enough for a tool to answer; a refused action leaves the state as it was. */
+const ACTION_WAIT_MS = 5000;
 
 const ENTITY_ICONS: Record<EntityKind, LucideIcon> = {
   light: Lightbulb,
@@ -94,7 +100,7 @@ function ActionButton({ action }: { action?: { label: string; text: string } }) 
   const send = useContext(BlockActions);
   if (!action) return null;
   return (
-    <button className="button" onClick={() => send(action.text)}>
+    <button className="button" onClick={() => send(action)}>
       {action.label}
     </button>
   );
@@ -102,7 +108,17 @@ function ActionButton({ action }: { action?: { label: string; text: string } }) 
 
 function EntityRow({ item }: { item: Omit<OfType<'entity'>, 'type'> }) {
   const send = useContext(BlockActions);
-  const { action } = item;
+  const { action, state } = item;
+  const [waiting, setWaiting] = useState(false);
+
+  // A second tap before the answer would undo the first one.
+  useEffect(() => setWaiting(false), [state]);
+  useEffect(() => {
+    if (!waiting) return undefined;
+    const timer = setTimeout(() => setWaiting(false), ACTION_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, [waiting]);
+
   const content = (
     <>
       <ToneIcon icon={ENTITY_ICONS[entityKind(item.name, item.unit)]} />
@@ -124,7 +140,17 @@ function EntityRow({ item }: { item: Omit<OfType<'entity'>, 'type'> }) {
     );
   }
   return (
-    <button className="entity entity-action" data-tone={tone} onClick={() => send(action.text)}>
+    <button
+      className="entity entity-action"
+      data-tone={tone}
+      aria-busy={waiting}
+      disabled={waiting}
+      onClick={() => {
+        // Without a tool, the tap becomes a message and the card has nothing to wait for.
+        setWaiting(Boolean(action.call));
+        send(action);
+      }}
+    >
       {content}
       <span className="entity-cta">{action.label}</span>
     </button>
@@ -233,6 +259,7 @@ const registry: Registry = {
       <img className="image" src={block.url} alt={block.alt ?? ''} />
     </Card>
   ),
+  camera: CameraCard,
   // Confirmations are driven by the dedicated event; this only keeps the question visible.
   confirm: ({ block }) => (
     <Card title="À confirmer" icon={ShieldQuestion} tone="on">

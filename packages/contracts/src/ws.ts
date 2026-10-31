@@ -24,6 +24,15 @@ export type HouseActivity = z.infer<typeof houseActivity>;
 
 export const displayClientMessage = z.discriminatedUnion('type', [
   frame('user.text', z.object({ text: z.string().min(1), sessionId: uuid.optional() })),
+  /** A tap on a card: runs one tool without the model and without a visible exchange. */
+  frame(
+    'card.action',
+    z.object({
+      text: z.string().min(1),
+      toolId: z.string(),
+      arguments: z.record(z.string(), z.unknown()),
+    }),
+  ),
   frame('request.cancel', z.object({ requestId: uuid })),
   frame('confirm.answer', z.object({ confirmId: uuid, accepted: z.boolean() })),
   frame('device.hello', z.object({ version: z.string(), capabilities: z.array(z.string()) })),

@@ -7,6 +7,9 @@ import type {
   CacheEntryUpdate,
   CacheSettings,
   CacheStats,
+  Camera,
+  CameraSourceStatus,
+  CameraUpdate,
   ChatRequest,
   ConfigBundle,
   ConfigImportResult,
@@ -184,6 +187,14 @@ export const memoryApi = {
   update: (id: string, input: Partial<MemoryInput>) =>
     http<Memory>('PATCH', `/memories/${id}`, input),
   remove: (id: string) => http('DELETE', `/memories/${id}`),
+};
+
+export const cameraApi = {
+  list: () => get<Camera[]>('/cameras'),
+  source: () => get<CameraSourceStatus>('/cameras/source'),
+  sync: () => http<Camera[]>('POST', '/cameras/sync', {}),
+  update: (id: string, input: CameraUpdate) => http<Camera>('PATCH', `/cameras/${id}`, input),
+  snapshotUrl: (id: string) => `/api/v1/cameras/${id}/snapshot`,
 };
 
 export const reportApi = {

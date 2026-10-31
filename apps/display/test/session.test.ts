@@ -22,7 +22,7 @@ const run = (...actions: SessionAction[]) =>
 const sent: SessionAction = { type: 'send', id: 'one', text: 'Bonjour' };
 
 describe('sessionReducer', () => {
-  it('sends blocks into orbit, replacing the card of the same device', () => {
+  it('sends blocks into orbit, updating the card of the same device in place', () => {
     const entity = (name: string, state: string) =>
       frame({
         type: 'answer.blocks',
@@ -30,7 +30,7 @@ describe('sessionReducer', () => {
       });
     const session = run(sent, entity('Salon', 'Allumé'), entity('Salon', 'Éteint'));
     expect(session.satellites).toMatchObject([
-      { id: 1, slot: 1, block: { name: 'Salon', state: 'Éteint' } },
+      { id: 0, slot: 0, block: { name: 'Salon', state: 'Éteint' } },
     ]);
   });
 
@@ -133,5 +133,42 @@ describe('isNight', () => {
   it('handles a window within one day', () => {
     expect(isNight(at(14), '13:00', '15:00')).toBe(true);
     expect(isNight(at(16), '13:00', '15:00')).toBe(false);
+  });
+});
+
+describe('camera cards', () => {
+  const cameraBlock = (cameraId: string, fullscreen: boolean) =>
+    frame({
+      type: 'answer.blocks',
+      requestId,
+      payload: {
+        requestId,
+        blocks: [{ type: 'camera', cameraId, name: cameraId, fullscreen }],
+      },
+    });
+
+  it('opens full screen when asked and stays a single card', () => {
+    const session = run(cameraBlock('porte', false), cameraBlock('porte', true));
+    expect(session.focusedCamera).toBe('porte');
+    expect(session.satellites).toHaveLength(1);
+    expect(session.satellites[0]?.id).toBe(0);
+  });
+
+  it('comes back to its card when an answer shows it as a card', () => {
+    const session = run(cameraBlock('porte', true), cameraBlock('porte', false));
+    expect(session.focusedCamera).toBeNull();
+  });
+
+  it('leaves another camera on screen', () => {
+    const session = run(cameraBlock('porte', true), cameraBlock('salon', false));
+    expect(session.focusedCamera).toBe('porte');
+  });
+
+  it('toggles on tap, counts as activity and ends with the session', () => {
+    const open = run(cameraBlock('salon', false), { type: 'camera.focus', cameraId: 'salon' });
+    expect(open.focusedCamera).toBe('salon');
+    expect(open.activity).toBe(1);
+    expect(sessionReducer(open, { type: 'camera.focus', cameraId: null }).focusedCamera).toBeNull();
+    expect(sessionReducer(open, { type: 'sleep' }).focusedCamera).toBeNull();
   });
 });

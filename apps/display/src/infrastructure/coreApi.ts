@@ -1,4 +1,4 @@
-import type { PairingCreated, PairingPoll, Room, WidgetData } from '@ayko/contracts';
+import type { CameraTicket, PairingCreated, PairingPoll, Room, WidgetData } from '@ayko/contracts';
 
 const BASE = '/api/v1';
 
@@ -24,6 +24,8 @@ export const coreApi = {
   config: (token: string) =>
     call<{ deviceId: string; room: Room | null }>('/device/config', bearer(token)),
   widgets: (token: string) => call<WidgetData>('/device/widgets', bearer(token)),
+  cameraTicket: (token: string, cameraId: string) =>
+    call<CameraTicket>(`/device/cameras/${cameraId}/ticket`, { method: 'POST', ...bearer(token) }),
   report: (token: string) =>
     call<{ id: string }>('/device/reports', { method: 'POST', ...bearer(token) }),
 };

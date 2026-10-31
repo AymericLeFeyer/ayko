@@ -106,6 +106,26 @@ describe('fitHistory', () => {
     const kept = fitHistory(history, 'system', 'question', 400);
     expect(kept.map((message) => message.content[0])).toEqual(['c']);
   });
+
+  it('keeps the last exchange even when the tools fill the window', () => {
+    const history = [
+      { role: 'user' as const, content: 'météo à Lille' },
+      { role: 'assistant' as const, content: 'Il fait 14 °C.' },
+    ];
+    const tools = [{ schema: 'y'.repeat(11_000) }];
+    expect(fitHistory(history, 's'.repeat(2200), 'et à Bailleul', 4096, tools)).toEqual(history);
+  });
+
+  it('gives up tool details before the words of the conversation', () => {
+    const history = [
+      { role: 'user' as const, content: 'météo à Lille' },
+      { role: 'assistant' as const, content: '', toolCalls: [{ name: 'web', arguments: {} }] },
+      { role: 'tool' as const, content: 'x'.repeat(2000), toolName: 'web' },
+      { role: 'assistant' as const, content: 'Il fait 14 °C.' },
+    ];
+    const kept = fitHistory(history, 's'.repeat(4000), 'et à Bailleul', 1000);
+    expect(kept.map((message) => message.role)).toEqual(['user', 'assistant']);
+  });
 });
 
 describe('structured tool fallback', () => {

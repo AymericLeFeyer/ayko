@@ -37,6 +37,12 @@ server.registerTool(
     lights.set(room, false);
     // An unknown block type on purpose: the Display must show it as text, not break.
     return withBlocks(`Lumière ${room} éteinte.`, [
+      {
+        type: 'entity',
+        name: `Lumière ${room}`,
+        state: 'Éteinte',
+        action: { label: 'Allumer', text: `Allume la lumière du ${room}` },
+      },
       { type: 'hologram', text: `Bloc inconnu : ${room} dans le noir` },
     ]);
   },

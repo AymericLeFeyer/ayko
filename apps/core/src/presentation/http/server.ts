@@ -12,6 +12,7 @@ import { AppError } from '../../shared/errors.js';
 import { handleDisplaySocket } from '../ws/displaySocket.js';
 import { adminAuthRoutes, publicAuthRoutes } from './routes/authRoutes.js';
 import { cacheRoutes } from './routes/cacheRoutes.js';
+import { adminCameraRoutes, publicCameraRoutes } from './routes/cameraRoutes.js';
 import { chatRoutes } from './routes/chatRoutes.js';
 import { mcpRoutes } from './routes/mcpRoutes.js';
 import { memoryRoutes } from './routes/memoryRoutes.js';
@@ -23,7 +24,7 @@ import { systemRoutes } from './routes/systemRoutes.js';
 import { authenticate, requireAdmin } from './support.js';
 
 /** POST routes that read or stream rather than change the configuration. */
-const NOT_AUDITED = /\/(chat|models\/test|preview|test|call|config\/export)/;
+const NOT_AUDITED = /\/(chat|models\/test|preview|test|call|config\/export|cameras\/sync)/;
 
 export async function buildServer(container: Container) {
   const { env, logger, system } = container;
@@ -80,6 +81,7 @@ export async function buildServer(container: Container) {
       api.get('/health', () => system.health());
       publicAuthRoutes(api, container);
       publicRoomRoutes(api, container);
+      publicCameraRoutes(api, container);
 
       api.register(async (admin) => {
         admin.addHook('preHandler', requireAdmin(container));
@@ -93,6 +95,7 @@ export async function buildServer(container: Container) {
         });
         adminAuthRoutes(admin, container);
         adminRoomRoutes(admin, container);
+        adminCameraRoutes(admin, container);
         ollamaRoutes(admin, container);
         mcpRoutes(admin, container);
         personaRoutes(admin, container);

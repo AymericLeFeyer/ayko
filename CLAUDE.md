@@ -24,6 +24,7 @@ Interface en français ; code, commentaires, API et commits en anglais.
 | rooms        | `RoomService`, `DeviceHub`                     | `RoomRepository`                                           |
 | conversation | `AgentService`, `ReportService`                | `ConversationRepository`, `fitHistory`, `ReportRepository` |
 | cache        | `CacheService`                                 | `CacheRepository`, `normalizeText`                         |
+| cameras      | `CameraService`                                | `CameraProvider`, `CameraRepository`, `parseCameraCommand` |
 | memory       | `MemoryService`                                | `MemoryRepository`, `memoryRules`                          |
 | voice        | `VoiceService`                                 | `VoiceEngine`, `VoiceRepository`                           |
 | system       | `SystemService`, `SettingsService`, `EventBus` | `SystemRepository`, `Vault`, `Logger`                      |
@@ -44,6 +45,7 @@ Design system : shadcn/ui uniquement, couleurs en variables dans `presentation/s
 | `/ollama`         | `OllamaPage`        | `/voix`       | `VoicePage`    |
 | `/mcp`            | `McpPage`           | `/historique` | `HistoryPage`  |
 | `/mcp/:id`        | `McpServerPage`     | `/raccourcis` | `CachePage`    |
+| `/cameras`        | `CamerasPage`       |               |                |
 | `/personas`       | `PersonasPage`      | `/journaux`   | `LogsPage`     |
 | `/terrain-de-jeu` | `PlaygroundPage`    | `/reglages`   | `SettingsPage` |
 | `/conversations`  | `ConversationsPage` | `/traces/:id` | `TracePage`    |
@@ -70,7 +72,7 @@ blanche, sans dépendance ni logique métier.
 Côté Core : `WidgetService` (`GET /device/widgets`), `blocksFromResult`, frame `house.activity`.
 Réglages de pièce ajoutés : `nightStart`, `nightEnd`, `lightMode`, `dashboardMode`, `widgetTools`.
 
-Écran de conversation : orbe au centre, journaux réduits sous la scène, texte en bulles en bas à
+Écran de conversation : orbe au centre, une seule ligne d'activité sous la scène (dernière étape, ou état tant qu'il n'y en a pas), texte en bulles en bas à
 gauche, blocs en orbite, barre de saisie centrée (720 px max). Le display garde 3 échanges
 (`VISIBLE_EXCHANGES`, sans effet sur le contexte du modèle) et 3 satellites (`SATELLITE_SLOTS`) ;
 `launch()` dans `session.ts` remplace la carte d'un même appareil. Tout nouveau type de bloc gravite
@@ -81,9 +83,34 @@ pas relu sur l'appareil. La tablette ne passe plus en plein écran au clic.
 
 Cartes : `domain/blockLook.ts` déduit du texte libre la couleur (`entityTone`, `data-tone` → `--tone`),
 l'icône d'appareil (`entityKind`) et la météo (`weatherKind`). Un état inconnu reste neutre.
-Une entité avec `action` est cliquable en entier : le tap envoie `action.text` comme un message, donc
-il repasse par l'agent. `actionBlock` fournit l'ordre inverse pour `turn_on`/`turn_off` si la cible
-est connue (`args.name`, `area`, `room`).
+Une entité avec `action` est cliquable en entier. Avec `action.call`, le tap envoie la frame
+`card.action` : `AgentService.runDirectCall` lance l'outil sans modèle, via `executeTool`, donc
+politiques et confirmations s'appliquent. `displaySocket` ne relaie que `answer.blocks` et
+`confirm.request` : ni bulle ni changement d'état, la carte se met à jour sur place (`launch` garde
+`id` et `slot`). La requête reste dans l'historique et le contexte, mais n'apprend aucun raccourci.
+Sans `call`, `action.text` part comme un message. `executeTool` ajoute `call` si l'outil inverse existe
+(`oppositeToolName`, `turn_on`/`turn_off` uniquement) ; `actionBlock` donne `action` si la cible est connue.
+
+## Caméras
+
+Le MCP de Home Assistant n'a aucun outil caméra : `HomeAssistantCameras` appelle son API REST
+(`/api/states`, `/api/camera_proxy/{id}`, `/api/camera_proxy_stream/{id}`). `homeAssistantSource` prend
+l'origine et le jeton du serveur MCP dont le chemin est `/api/mcp` ou `/mcp_server` : pas de second
+secret. Flux MJPEG, joué par un `<img>` ; le RTSP exigerait un transcodeur.
+
+Entité `Camera` : `entityId`, `name`, `aliases`, `fullscreenByDefault`, `enabled`. `POST /cameras/sync`
+importe, conserve les choix de l'admin et retire ce qui a disparu : jamais automatique hors mock.
+
+Phrases décidées par le code, sans modèle (`parseCameraCommand`, après la mémoire, avant le cache) :
+`show` (« montre-moi la porte », « caméra salon », « plein écran »), `look` (« qui est devant la porte »).
+Un verbe d'action (« ouvre la porte ») part au modèle. Sans nom : dernière caméra de la tablette, unique
+caméra, sinon « Quelle caméra ? ». `AgentService.lookAt` : capture, rôle Vision, réponse sans outils.
+L'image n'entre ni dans la trace ni dans l'historique. `look` force `fullscreen: false`.
+
+Bloc `camera {cameraId, name, fullscreen}`. `session.focusedCamera` : `launch` l'ouvre ou le ferme,
+`camera.focus` au tap. Le plein écran est un calque hors `.satellite`, dont la transformation casserait
+`position: fixed` ; la carte coupe son flux pendant ce temps. `POST /device/cameras/:id/ticket` donne une
+URL à usage unique (30 s), car un `<img>` n'envoie pas le jeton de la tablette.
 
 ## Signalements
 
@@ -101,7 +128,9 @@ souvenirs (`MemoryService.recall`), consigne d'action. Page backoffice : `/souve
 Commandes `parseMemoryCommand` (« souviens-toi que », « oublie que ») traitées sans le modèle.
 
 Routage : `routingPrompt` liste les serveurs connectés et leurs outils (8 par serveur) ; sans outil
-exposé, pas d'inférence de routage. `fitHistory` compte les schémas d'outils dans le budget.
+exposé, pas d'inférence de routage. `fitHistory` compte les schémas d'outils dans le budget, mais
+réserve toujours 20 % de `numCtx` à l'historique (`MIN_HISTORY_RATIO`) et sacrifie les détails d'outils
+avant les messages. `resolveModel` envoie `numCtx` à Ollama : 8192 si le rôle n'a rien de réglé.
 
 ## Raccourcis dictés
 
@@ -138,10 +167,15 @@ sans pièce. Le rejeu passe par `executeTool` : les confirmations s'appliquent �
 - `bash` seul lance WSL dans `launch.json` ; utiliser le chemin de Git Bash.
 - `contracts` se compile : relancer `npm run build -w @ayko/contracts` après modification, sinon Core et le backoffice voient l'ancienne version.
 - Windows : `tsx watch` reste muet et ne démarre jamais sous `concurrently`. Core utilise `node --watch --import tsx`.
+- Caméras et ban Home Assistant : un seul 401 coupe tout (`CameraService.refused`) jusqu'à la prochaine synchronisation. Pas de nouvel essai automatique côté tablette non plus.
+- Un flux MJPEG ne se termine jamais seul : tout proxy doit couper l'amont à la fermeture du client (`server.mjs`, `cameraRoutes`), sinon la connexion à Home Assistant reste ouverte.
+- Caméra sans MJPEG natif : Home Assistant envoie des captures successives, le flux peut être saccadé.
 - Migrations : `apps/core/drizzle` est committé et embarqué dans l'image Docker.
 - Noms de modèles avec `:` ou `/` : routes en wildcard `/ollama/models/*`.
 - Le faux Ollama et le faux MCP sont de vrais serveurs : les tests couvrent le chemin de production, mais jamais un vrai modèle.
 - Raccourci manuel : `learn` ne l'écrase jamais, `lookup` ignore `isCacheableText` pour lui (« ça caille »), et un rejeu raté répond l'échec au lieu de repartir au modèle.
 - `ACTION_VERBS` reste domotique : ajouter « envoyer » ou « créer » ferait passer une simple discussion pour une action due. L'étendre seulement avec un serveur qui en a besoin.
 - `learnAliases` lit `args.name` de tout outil d'action : avec un serveur non domotique, il faudra le limiter aux serveurs source de contexte.
+- Contexte perdu entre deux messages : vérifier dans la trace que `prompt.messages` contient l'historique. 12 outils Home Assistant + SearXNG pèsent ~3 200 tokens : à 4096 de `numCtx`, ils remplissent la fenêtre et Ollama peut tronquer. Viser 8192 ou plus.
+- La carte d'un appareil se retrouve par son `name` : l'outil inverse doit renvoyer le même nom, sinon le tap ajoute une seconde carte.
 - `mcp_tools` : une modification de schéma invalide le cache via `schemaHash`, mais les choix de l'admin (alias, politique) sont conservés.

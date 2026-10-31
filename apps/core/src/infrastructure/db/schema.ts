@@ -310,6 +310,17 @@ export const reports = sqliteTable(
   (table) => [index('reports_created_idx').on(table.createdAt)],
 );
 
+export const cameras = sqliteTable('cameras', {
+  id: text('id').primaryKey(),
+  entityId: text('entity_id').notNull().unique(),
+  name: text('name').notNull(),
+  aliases: json<string[]>('aliases').notNull(),
+  fullscreenByDefault: bool('fullscreen_by_default').notNull(),
+  enabled: bool('enabled').notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
   value: json<unknown>('value').notNull(),

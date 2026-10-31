@@ -7,6 +7,7 @@ export * from './rooms.js';
 export * from './chat.js';
 export * from './blocks.js';
 export * from './cache.js';
+export * from './cameras.js';
 export * from './memory.js';
 export * from './voice.js';
 export * from './system.js';

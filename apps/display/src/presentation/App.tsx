@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { roomConfig, type Room, type RoomConfig, type WidgetData } from '@ayko/contracts';
 import { useConversation } from '@/application/useConversation';
 import { useDevice } from '@/application/useDevice';
 import { useBurnInShift, useNow, useWakeLock } from '@/application/useKiosk';
 import { isNight } from '@/domain/session';
 import { coreApi } from '@/infrastructure/coreApi';
+import { CameraContext, CameraFullscreen } from './blocks/Camera';
 import { BlockActions } from './blocks/registry';
 import {
   CenteredMessage,
@@ -64,6 +65,14 @@ function Kiosk(props: {
   const sleeping = session.screen === 'idle';
   const night = isNight(now, config.nightStart, config.nightEnd);
   const dimmed = sleeping && night;
+  const { focusedCamera } = session;
+  const cameras = useMemo(
+    () => ({ token, focused: focusedCamera, focus: conversation.focusCamera }),
+    [token, focusedCamera, conversation.focusCamera],
+  );
+  const covering = session.satellites.find(
+    ({ block }) => block.type === 'camera' && block.cameraId === focusedCamera,
+  )?.block;
 
   return (
     <div
@@ -77,37 +86,42 @@ function Kiosk(props: {
           Reconnexion…
         </p>
       )}
-      <BlockActions.Provider value={send}>
-        {config.dashboardMode ? (
-          <DashboardScreen now={now} feed={conversation.feed} />
-        ) : sleeping ? (
-          <HomeScreen
-            now={now}
-            config={config}
-            widgets={widgets}
-            roomName={room?.name ?? ''}
-            shift={shift}
-            onWake={conversation.wake}
-            onSuggestion={send}
-          />
-        ) : (
-          <ConversationScreen
-            state={session.screen}
-            keystrokes={session.keystrokes}
-            exchanges={session.exchanges}
-            satellites={session.satellites}
-            busy={conversation.busy}
-            suggestions={config.suggestions}
-            onSend={send}
-            onTyping={conversation.typing}
-            onActivity={conversation.activity}
-            onCancel={conversation.cancel}
-            onHome={conversation.goHome}
-            reportState={conversation.reportState}
-            onReport={conversation.report}
-          />
+      <CameraContext.Provider value={cameras}>
+        <BlockActions.Provider value={conversation.runAction}>
+          {config.dashboardMode ? (
+            <DashboardScreen now={now} feed={conversation.feed} />
+          ) : sleeping ? (
+            <HomeScreen
+              now={now}
+              config={config}
+              widgets={widgets}
+              roomName={room?.name ?? ''}
+              shift={shift}
+              onWake={conversation.wake}
+              onSuggestion={send}
+            />
+          ) : (
+            <ConversationScreen
+              state={session.screen}
+              keystrokes={session.keystrokes}
+              exchanges={session.exchanges}
+              satellites={session.satellites}
+              busy={conversation.busy}
+              suggestions={config.suggestions}
+              onSend={send}
+              onTyping={conversation.typing}
+              onActivity={conversation.activity}
+              onCancel={conversation.cancel}
+              onHome={conversation.goHome}
+              reportState={conversation.reportState}
+              onReport={conversation.report}
+            />
+          )}
+        </BlockActions.Provider>
+        {covering && (
+          <CameraFullscreen cameraId={String(covering.cameraId)} name={String(covering.name)} />
         )}
-      </BlockActions.Provider>
+      </CameraContext.Provider>
       {session.confirm && (
         <ConfirmOverlay confirm={session.confirm} onAnswer={conversation.answerConfirm} />
       )}

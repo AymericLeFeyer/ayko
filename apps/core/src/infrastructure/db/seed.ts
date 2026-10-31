@@ -83,6 +83,7 @@ export async function seedDemo(
     },
     { role: 'routing', model: 'mock-tiny:latest', params: modelParams.parse({}) },
     { role: 'embeddings', model: 'mock-embed:latest', params: modelParams.parse({}) },
+    { role: 'vision', model: 'mock-vision:latest', params: modelParams.parse({}) },
   ]);
   await rooms.createRoom({
     name: 'Salon',

@@ -16,6 +16,8 @@ export interface LlmMessage {
   content: string;
   toolCalls?: LlmToolCall[];
   toolName?: string;
+  /** Base64, for vision models. */
+  images?: string[];
 }
 
 export interface LlmTool {

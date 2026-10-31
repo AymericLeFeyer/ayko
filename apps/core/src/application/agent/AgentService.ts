@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { AgentEvent, ModelParams, StepKind, StepStatus } from '@ayko/contracts';
+import type { AgentEvent, Camera, ModelParams, StepKind, StepStatus } from '@ayko/contracts';
 import type { ConversationRepository } from '../../domain/conversation/repositories/ConversationRepository.js';
 import { isActionRequest, normalizeText } from '../../domain/cache/services/normalizeText.js';
 import {
@@ -21,12 +21,18 @@ import {
   structuredToolPrompt,
 } from '../../domain/llm/services/structuredTools.js';
 import type { McpToolRecord } from '../../domain/mcp/repositories/McpRepository.js';
-import { actionBlock, blocksFromResult } from '../../domain/mcp/services/toolBlocks.js';
+import {
+  actionBlock,
+  blocksFromResult,
+  oppositeToolName,
+  withDirectCall,
+} from '../../domain/mcp/services/toolBlocks.js';
 import { renderPrompt } from '../../domain/persona/services/renderPrompt.js';
 import type { Logger } from '../../domain/system/Logger.js';
 import { isAbortError, Semaphore } from '../../shared/async.js';
 import { AppError, errorMessage } from '../../shared/errors.js';
 import type { CacheMatch, CacheService, ExecutedCall } from '../cache/CacheService.js';
+import type { CameraRequest, CameraService } from '../cameras/CameraService.js';
 import type { MemoryService } from '../memory/MemoryService.js';
 import type { HomeContextService } from './HomeContextService.js';
 import type { OllamaService } from '../llm/OllamaService.js';
@@ -47,9 +53,12 @@ export interface AgentInput {
   personaId?: string | null;
   bypassCache?: boolean;
   source: 'playground' | 'display' | 'api';
+  /** A tap on a card: this tool runs as is, `text` only describes it in the history. */
+  directCall?: { toolId: string; arguments: Record<string, unknown> };
 }
 
-const DEFAULT_NUM_CTX = 4096;
+/** Sent to Ollama too: tool schemas alone can take 3 000 tokens of a smaller window. */
+const DEFAULT_NUM_CTX = 8192;
 const ACTION_CLAUSE =
   "Pour agir, tu dois appeler l'outil correspondant. Lire une information ne change rien. " +
   "N'annonce jamais qu'une action est faite sans le résultat de son outil.";
@@ -71,6 +80,12 @@ const SHORTCUT_NOTED =
 const SHORTCUT_NOT_UNDERSTOOD =
   "Je n'ai pas trouvé d'outil pour faire ça : aucun raccourci n'a été créé.";
 const SHORTCUTS_OFF = 'Les raccourcis sont désactivés ici : aucun raccourci créé.';
+const NO_VISION_MODEL =
+  "Je ne peux pas regarder l'image : aucun modèle n'a le rôle Vision. La caméra reste affichée.";
+const visionPrompt = (camera: string) =>
+  `Tu es Ayko, l'assistant de la maison. Voici l'image actuelle de la caméra ${camera}. ` +
+  "Réponds en français, en une ou deux phrases, d'après ce qui est réellement visible. " +
+  "Si tu ne vois personne ou si l'image est trop sombre, dis-le. N'invente rien.";
 
 /** Everything one request accumulates while it runs. */
 interface Run {
@@ -128,6 +143,7 @@ export class AgentService {
     private readonly cache: CacheService,
     private readonly memory: MemoryService,
     private readonly homeContext: HomeContextService,
+    private readonly cameras: CameraService,
     private readonly settings: SettingsService,
     private readonly bus: EventBus,
     private readonly logger: Logger,
@@ -294,6 +310,69 @@ export class AgentService {
     }
   }
 
+  /** Shown before anything else: the view must not wait for the model to be free. */
+  private async runCameraRequest(run: Run, request: CameraRequest) {
+    if (request.intent === 'choose') {
+      const names = request.cameras.map((camera) => camera.name).join(', ');
+      return this.say(run, `Quelle caméra ? ${names}.`);
+    }
+    const { camera, fullscreen, intent } = request;
+    run.emit({
+      type: 'answer.blocks',
+      requestId: run.requestId,
+      blocks: [{ type: 'camera', cameraId: camera.id, name: camera.name, fullscreen }],
+    });
+    if (intent === 'show') return this.say(run, `Caméra affichée : ${camera.name}.`);
+    return this.lookAt(run, camera);
+  }
+
+  /** The image goes to the model and nowhere else: neither the trace nor the history keep it. */
+  private async lookAt(run: Run, camera: Camera) {
+    const role = await this.ollama.getRole('vision');
+    if (!role?.model) return this.say(run, NO_VISION_MODEL);
+    const capture = await this.startStep(run, 'tool_call', `Capture : ${camera.name}`);
+    let image: string;
+    try {
+      const { data } = await this.cameras.snapshot(camera.id, run.signal);
+      image = data.toString('base64');
+      await capture.finish('done');
+    } catch (error) {
+      if (isAbortError(error) || run.signal.aborted) throw error;
+      await capture.finish('error', { error: errorMessage(error) });
+      return this.say(run, `Je n'arrive pas à voir ${camera.name} : la capture a échoué.`);
+    }
+
+    const system = visionPrompt(camera.name);
+    run.model = role.model;
+    await this.conversations.updateRequest(run.requestId, {
+      model: role.model,
+      prompt: {
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: `${run.input.text} [image de ${camera.name}]` },
+        ],
+        tools: [],
+      },
+    });
+    const { text } = await this.withModel(run, async () => {
+      const step = await this.startStep(run, 'thinking', "Analyse de l'image");
+      const turn = await this.streamTurn(run, {
+        model: role.model as string,
+        params: { ...role.params, numCtx: role.params.numCtx ?? DEFAULT_NUM_CTX },
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: run.input.text, images: [image] },
+        ],
+        tools: [],
+        structuredTools: null,
+        holdText: false,
+      });
+      await step.finish('done');
+      return turn;
+    });
+    return text || this.say(run, `Je ne sais pas dire ce que montre ${camera.name}.`);
+  }
+
   /**
    * Code decides that this is a shortcut; the model only translates the orders into real
    * tool calls, which are stored and never run. Replaying goes through `executeTool`, so
@@ -349,7 +428,7 @@ export class AgentService {
         exposed,
         systemPrompt,
         userText: shortcutRequest(phrase, command.actions),
-        numCtx: params.numCtx ?? DEFAULT_NUM_CTX,
+        numCtx: params.numCtx,
         tools: native ? tools : [],
         native,
       });
@@ -463,7 +542,29 @@ export class AgentService {
     return { calls: actions.length > 0 ? actions : planned, refused };
   }
 
+  /**
+   * The tablet names the tool, so it is held to what the model could reach from this room.
+   * `cacheHit` keeps a tap out of the learned shortcuts, as it never was a sentence.
+   */
+  private async runDirectCall(run: Run, call: NonNullable<AgentInput['directCall']>) {
+    const refuse = (answer: string) => {
+      const blocks = [{ type: 'error', message: answer }];
+      run.emit({ type: 'answer.blocks', requestId: run.requestId, blocks });
+      return { answer, cacheHit: true };
+    };
+    const exposed = await this.registry.toolsFor(run.roomId);
+    const tool = exposed.find((item) => item.tool.id === call.toolId)?.tool;
+    if (!tool || tool.readOnly) return refuse(`Action indisponible : ${run.input.text}`);
+    const invalid = argumentProblem(tool.inputSchema, call.arguments);
+    if (invalid) return refuse(`Action impossible : ${invalid}`);
+    const result = await this.executeTool(run, tool, call.arguments, 'cache');
+    if (result.declined) return { answer: 'Action annulée.', cacheHit: true };
+    if (result.isError) return refuse(`Échec : ${run.input.text}`);
+    return { answer: 'Fait.', cacheHit: true };
+  }
+
   private async execute(run: Run): Promise<{ answer: string; cacheHit: boolean }> {
+    if (run.input.directCall) return this.runDirectCall(run, run.input.directCall);
     // Before memory commands: "retiens que quand je dis X, fais Y" is a shortcut, not a fact.
     const shortcut = parseShortcutCommand(run.input.text);
     if (shortcut) {
@@ -472,6 +573,9 @@ export class AgentService {
     }
     const remembered = await this.runMemoryCommand(run);
     if (remembered) return { answer: remembered, cacheHit: false };
+    // Before the cache: what a camera shows now says nothing about what it showed earlier.
+    const camera = await this.cameras.interpret(run.input.text, run.deviceId);
+    if (camera) return { answer: await this.runCameraRequest(run, camera), cacheHit: false };
     const useCache = !run.input.bypassCache && (await this.cache.isEnabledFor(run.roomId));
     if (useCache) {
       const started = performance.now();
@@ -612,10 +716,27 @@ export class AgentService {
     if (!result.isError && blocks.length === 0 && !tool.readOnly) {
       blocks.push(actionBlock(tool.name, toolLabel(tool), args));
     }
-    if (blocks.length > 0) run.emit({ type: 'answer.blocks', requestId: run.requestId, blocks });
+    if (blocks.length > 0) {
+      const opposite = await this.oppositeOf(tool, run.roomId);
+      run.emit({
+        type: 'answer.blocks',
+        requestId: run.requestId,
+        blocks: opposite ? withDirectCall(blocks, opposite.id, args) : blocks,
+      });
+    }
     if (result.isError) run.anyToolFailed = true;
     else run.calls.push({ tool, arguments: args, result: result.text });
     return { text: result.text, isError: result.isError, declined: false };
+  }
+
+  private async oppositeOf(tool: McpToolRecord, roomId: string | null) {
+    const name = oppositeToolName(tool.name);
+    if (!name) return null;
+    const exposed = await this.registry.toolsFor(roomId);
+    return (
+      exposed.find((item) => item.tool.serverId === tool.serverId && item.tool.name === name)
+        ?.tool ?? null
+    );
   }
 
   /** Returns the answer, or null when the caller must fall back on the LLM. */
@@ -683,7 +804,8 @@ export class AgentService {
     if (!model) {
       throw new AppError('no_model', 'Aucun modèle de conversation configuré', 409);
     }
-    return { model, params: (role?.params ?? {}) as Partial<ModelParams> };
+    const params = (role?.params ?? {}) as Partial<ModelParams>;
+    return { model, params: { ...params, numCtx: params.numCtx ?? DEFAULT_NUM_CTX } };
   }
 
   private async routeNeedsTools(run: Run, exposed: ExposedTool[]) {
@@ -826,7 +948,7 @@ export class AgentService {
       exposed,
       systemPrompt,
       userText: run.input.text,
-      numCtx: params.numCtx ?? DEFAULT_NUM_CTX,
+      numCtx: params.numCtx,
       tools: native ? tools : [],
       native,
     });

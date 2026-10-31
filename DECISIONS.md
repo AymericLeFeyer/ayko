@@ -161,6 +161,11 @@ deleting a room first would detach its paired tablets.
 **No HSTS or `upgrade-insecure-requests`**: the default deployment is plain HTTP on a LAN and those
 headers would break it. A reverse proxy can add them.
 
+**Cameras go through Home Assistant's REST API, as MJPEG.** Its MCP server has no camera tool and no
+browser reads RTSP, while an `<img>` plays `camera_proxy_stream` with no transcoder and no dependency.
+Core proxies it, so the token never reaches a tablet. Sentences are recognised by code rather than
+by the model: a view shows at once, even on a busy CPU, and a camera answer never enters the cache.
+
 ## Interface
 
 **shadcn/ui**, as specified. Fonts are bundled through Fontsource, because a Google Fonts link

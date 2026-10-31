@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import type { HouseActivity, RoomConfig } from '@ayko/contracts';
+import type { EntityAction, HouseActivity, RoomConfig } from '@ayko/contracts';
 import { initialSession, sessionReducer } from '@/domain/session';
 import { CoreSocket } from '@/infrastructure/CoreSocket';
 import { coreApi } from '@/infrastructure/coreApi';
@@ -87,6 +87,24 @@ export function useConversation(options: {
     return Boolean(delivered);
   }, []);
 
+  /** Runs a card's action without a visible exchange when Core gave its tool. */
+  const runAction = useCallback(
+    (action: Pick<EntityAction, 'text' | 'call'>) => {
+      if (!action.call) return void send(action.text);
+      dispatch({ type: 'activity' });
+      socket.current?.send({
+        type: 'card.action',
+        payload: { text: action.text, ...action.call },
+      });
+    },
+    [send],
+  );
+
+  const focusCamera = useCallback(
+    (cameraId: string | null) => dispatch({ type: 'camera.focus', cameraId }),
+    [],
+  );
+
   const cancel = () => {
     if (session.requestId) {
       socket.current?.send({
@@ -121,6 +139,8 @@ export function useConversation(options: {
     reportState,
     report,
     send,
+    runAction,
+    focusCamera,
     cancel,
     answerConfirm,
     wake: () => dispatch({ type: 'wake' }),

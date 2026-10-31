@@ -62,6 +62,14 @@ export function handleDisplaySocket(
     socket.send(JSON.stringify({ ...frame, room: device.roomId, ts: new Date().toISOString() }));
   };
 
+  const track = (event: AgentEvent) => {
+    if (event.type === 'request.accepted') {
+      ownRequests.add(event.requestId);
+      sessionId = event.conversationId;
+    }
+    if (event.type === 'confirm.request') ownConfirmations.add(event.confirmId);
+  };
+
   socket.on('message', (raw) => {
     let message;
     try {
@@ -89,11 +97,26 @@ export function handleDisplaySocket(
             source: 'display',
           },
           (event) => {
-            if (event.type === 'request.accepted') {
-              ownRequests.add(event.requestId);
-              sessionId = event.conversationId;
-            }
-            if (event.type === 'confirm.request') ownConfirmations.add(event.confirmId);
+            track(event);
+            const frame = toFrame(event);
+            if (frame) send(frame);
+          },
+        );
+        break;
+      case 'card.action':
+        void agent.run(
+          {
+            text: message.payload.text,
+            roomId: device.roomId,
+            deviceId: device.id,
+            conversationId: sessionId,
+            source: 'display',
+            directCall: { toolId: message.payload.toolId, arguments: message.payload.arguments },
+          },
+          (event) => {
+            track(event);
+            // The card updates in place: the screen and the conversation must not react.
+            if (event.type !== 'answer.blocks' && event.type !== 'confirm.request') return;
             const frame = toFrame(event);
             if (frame) send(frame);
           },

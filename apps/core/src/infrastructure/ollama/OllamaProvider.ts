@@ -41,6 +41,7 @@ const toWireMessage = (message: LlmMessage) => ({
   role: message.role,
   content: message.content,
   ...(message.toolName ? { tool_name: message.toolName } : {}),
+  ...(message.images?.length ? { images: message.images } : {}),
   ...(message.toolCalls
     ? {
         tool_calls: message.toolCalls.map((call: LlmToolCall) => ({

@@ -26,6 +26,26 @@ export function actionBlock(toolName: string, label: string, args: Record<string
   };
 }
 
+const OPPOSITE: Record<string, string> = { on: 'off', off: 'on', On: 'Off', Off: 'On' };
+
+/** `HassTurnOn` → `HassTurnOff`, `light_turn_off` → `light_turn_on`; null for anything else. */
+export function oppositeToolName(toolName: string) {
+  const swapped = toolName.replace(
+    /(turn_?)(on|off)$/i,
+    (_match, prefix: string, state: string) => `${prefix}${OPPOSITE[state] ?? state}`,
+  );
+  return swapped === toolName ? null : swapped;
+}
+
+/** Lets a tap on a card run the opposite tool itself, with the arguments of this call. */
+export function withDirectCall(blocks: Block[], toolId: string, args: Record<string, unknown>) {
+  return blocks.map((block) => {
+    const action = block.action as { label: string; text: string } | undefined;
+    if (block.type !== 'entity' || !action) return block;
+    return { ...block, action: { ...action, call: { toolId, arguments: args } } };
+  });
+}
+
 export function blocksFromResult(raw: unknown): Block[] {
   const content = (raw as { structuredContent?: { blocks?: unknown } } | null)?.structuredContent;
   if (!Array.isArray(content?.blocks)) return [];
