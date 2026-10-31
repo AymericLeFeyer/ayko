@@ -1031,6 +1031,7 @@ export class AgentService {
     const started = performance.now();
     let text = '';
     let flushed = 0;
+    let truncated = false;
     const toolCalls: LlmToolCall[] = [];
     const flush = (upTo: number) => {
       if (upTo <= flushed) return;
@@ -1048,7 +1049,6 @@ export class AgentService {
     )) {
       if (chunk.type === 'text') {
         if (run.ttftMs === null) {
-    let truncated = false;
           run.ttftMs = performance.now() - started;
           run.emit({ type: 'state.changed', requestId: run.requestId, state: 'answering' });
         }
@@ -1063,7 +1063,14 @@ export class AgentService {
       } else {
         run.outputTokens += chunk.outputTokens ?? 0;
         run.evalDurationMs += chunk.evalDurationMs ?? 0;
+        truncated ||= chunk.truncated === true;
       }
+    }
+    if (truncated && toolCalls.length === 0) {
+      const cut = await this.startStep(run, 'error', 'Réponse coupée par une limite du modèle');
+      await cut.finish('error');
+      text += ANSWER_CUT;
+      if (!request.holdText) flush(text.length);
     }
     if (request.structuredTools) {
       const call = flushed === 0 ? parseStructuredCall(text, request.structuredTools) : null;
@@ -1080,15 +1087,8 @@ export class AgentService {
       run.emit({ type: 'answer.delta', requestId: run.requestId, text: answer });
     }
     const tokensPerSecond =
-        truncated ||= chunk.truncated === true;
       run.evalDurationMs > 0 && run.outputTokens > 0
         ? (run.outputTokens * 1000) / run.evalDurationMs
-    if (truncated && toolCalls.length === 0) {
-      const cut = await this.startStep(run, 'error', 'Réponse coupée par une limite du modèle');
-      await cut.finish('error');
-      text += ANSWER_CUT;
-      if (!request.holdText) flush(text.length);
-    }
         : null;
     await this.conversations.addMessage({
       id: randomUUID(),
