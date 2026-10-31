@@ -17,6 +17,7 @@ import { mcpRoutes } from './routes/mcpRoutes.js';
 import { memoryRoutes } from './routes/memoryRoutes.js';
 import { ollamaRoutes } from './routes/ollamaRoutes.js';
 import { personaRoutes } from './routes/personaRoutes.js';
+import { reportRoutes } from './routes/reportRoutes.js';
 import { adminRoomRoutes, publicRoomRoutes } from './routes/roomRoutes.js';
 import { systemRoutes } from './routes/systemRoutes.js';
 import { authenticate, requireAdmin } from './support.js';
@@ -98,6 +99,7 @@ export async function buildServer(container: Container) {
         chatRoutes(admin, container);
         cacheRoutes(admin, container);
         memoryRoutes(admin, container);
+        reportRoutes(admin, container);
         systemRoutes(admin, container);
       });
     },

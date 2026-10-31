@@ -56,7 +56,7 @@ test('a paired tablet shows home, streams answers and cards, and survives change
     await page.locator('.home').click();
     await page.getByLabel('Votre message').fill('Allume la lumière du salon');
     await page.getByRole('button', { name: 'Envoyer' }).click();
-    await expect(page.getByText("Ce qu'Ayko fait")).toBeVisible();
+    await expect(page.getByRole('list', { name: "Ce qu'Ayko fait" })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Éteindre' })).toBeVisible();
   });
 
@@ -68,7 +68,7 @@ test('a paired tablet shows home, streams answers and cards, and survives change
   await test.step('a long Markdown answer renders and scrolls', async () => {
     const list = page.locator('.exchanges');
     const overflowing = () =>
-      list.evaluate((element) => element.scrollHeight > element.clientHeight);
+      list.evaluate((element) => element.scrollHeight > element.clientHeight + 100);
     const offset = () => list.evaluate((element) => element.scrollTop);
 
     await page.getByLabel('Votre message').fill('Montre du markdown');
@@ -79,6 +79,8 @@ test('a paired tablet shows home, streams answers and cards, and survives change
     // Scrolling up during the stream must hold still.
     await list.evaluate((element) => {
       element.scrollTop = 0;
+      // A delta may land before the browser's own scroll event: signal it now.
+      element.dispatchEvent(new Event('scroll'));
     });
     await page.waitForTimeout(600);
     expect(await offset()).toBe(0);
@@ -100,6 +102,13 @@ test('a paired tablet shows home, streams answers and cards, and survives change
     await page.getByRole('button', { name: 'Oui' }).click();
     await expect(page.getByRole('alertdialog')).toBeHidden();
     await expect(page.getByText('verrouillée', { exact: false }).first()).toBeVisible();
+  });
+
+  await test.step('an odd exchange can be reported in one tap', async () => {
+    await page.getByRole('button', { name: 'Signaler' }).click();
+    await expect(page.getByRole('button', { name: 'Signalé' })).toBeDisabled();
+    const [saved] = await json<{ traces: { text: string }[] }[]>(api, 'reports?limit=1');
+    expect(saved?.traces.at(-1)?.text).toBe('Verrouille la porte');
   });
 
   await test.step('it goes home on command, then reconnects alone in its new room', async () => {

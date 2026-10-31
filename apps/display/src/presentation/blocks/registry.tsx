@@ -1,5 +1,39 @@
+import {
+  Blinds,
+  CalendarDays,
+  Cloud,
+  CloudFog,
+  CloudLightning,
+  CloudRain,
+  CloudSnow,
+  DoorClosed,
+  Droplets,
+  Fan,
+  Gauge,
+  Lightbulb,
+  ListChecks,
+  type LucideIcon,
+  Plug,
+  Power,
+  ShieldQuestion,
+  Speaker,
+  Sun,
+  Table2,
+  Thermometer,
+  Timer as TimerIcon,
+  TriangleAlert,
+  Tv,
+} from 'lucide-react';
 import { createContext, useContext, useEffect, useState, type ComponentType } from 'react';
 import { knownBlock, type Block, type KnownBlock } from '@ayko/contracts';
+import {
+  entityKind,
+  entityTone,
+  weatherKind,
+  type EntityKind,
+  type Tone,
+  type WeatherKind,
+} from '@/domain/blockLook';
 import { Markdown } from '../Markdown';
 
 type OfType<T extends KnownBlock['type']> = Extract<KnownBlock, { type: T }>;
@@ -8,12 +42,53 @@ type Registry = { [T in KnownBlock['type']]: ComponentType<{ block: OfType<T> }>
 /** Lets a card send a message, such as the quick action of a device. */
 export const BlockActions = createContext<(text: string) => void>(() => {});
 
-const Card = ({ title, children }: { title?: string; children: React.ReactNode }) => (
-  <section className="card">
-    {title && <h3 className="card-title">{title}</h3>}
-    {children}
-  </section>
+const ENTITY_ICONS: Record<EntityKind, LucideIcon> = {
+  light: Lightbulb,
+  heating: Thermometer,
+  shutter: Blinds,
+  plug: Plug,
+  screen: Tv,
+  door: DoorClosed,
+  speaker: Speaker,
+  fan: Fan,
+  humidity: Droplets,
+  power: Power,
+};
+
+const WEATHER_ICONS: Record<WeatherKind, LucideIcon> = {
+  sun: Sun,
+  cloud: Cloud,
+  rain: CloudRain,
+  snow: CloudSnow,
+  storm: CloudLightning,
+  fog: CloudFog,
+};
+
+const ToneIcon = ({ icon: Icon }: { icon: LucideIcon }) => (
+  <span className="tone-icon">
+    <Icon size={24} aria-hidden />
+  </span>
 );
+
+function Card(props: {
+  title?: string;
+  icon?: LucideIcon;
+  tone?: Tone;
+  children: React.ReactNode;
+}) {
+  const { title, icon, tone, children } = props;
+  return (
+    <section className="card" data-tone={tone}>
+      {(title || icon) && (
+        <div className="card-header">
+          {icon && <ToneIcon icon={icon} />}
+          {title && <h3 className="card-title">{title}</h3>}
+        </div>
+      )}
+      {children}
+    </section>
+  );
+}
 
 function ActionButton({ action }: { action?: { label: string; text: string } }) {
   const send = useContext(BlockActions);
@@ -25,16 +100,36 @@ function ActionButton({ action }: { action?: { label: string; text: string } }) 
   );
 }
 
-const EntityRow = ({ item }: { item: Omit<OfType<'entity'>, 'type'> }) => (
-  <div className="entity">
-    <span className="entity-name">{item.name}</span>
-    <span className="entity-state">
-      {item.state}
-      {item.unit && ` ${item.unit}`}
-    </span>
-    <ActionButton action={item.action} />
-  </div>
-);
+function EntityRow({ item }: { item: Omit<OfType<'entity'>, 'type'> }) {
+  const send = useContext(BlockActions);
+  const { action } = item;
+  const content = (
+    <>
+      <ToneIcon icon={ENTITY_ICONS[entityKind(item.name, item.unit)]} />
+      <span className="entity-text">
+        <span className="entity-name">{item.name}</span>
+        <span className="entity-state">
+          {item.state}
+          {item.unit && ` ${item.unit}`}
+        </span>
+      </span>
+    </>
+  );
+  const tone = entityTone(item.state);
+  if (!action) {
+    return (
+      <div className="entity" data-tone={tone}>
+        {content}
+      </div>
+    );
+  }
+  return (
+    <button className="entity entity-action" data-tone={tone} onClick={() => send(action.text)}>
+      {content}
+      <span className="entity-cta">{action.label}</span>
+    </button>
+  );
+}
 
 function Timer({ block }: { block: OfType<'timer'> }) {
   const [now, setNow] = useState(Date.now);
@@ -45,7 +140,7 @@ function Timer({ block }: { block: OfType<'timer'> }) {
   const seconds = Math.max(0, Math.round((new Date(block.endsAt).getTime() - now) / 1000));
   const minutes = String(Math.floor(seconds / 60)).padStart(2, '0');
   return (
-    <Card title={block.label}>
+    <Card title={block.label} icon={TimerIcon} tone={seconds === 0 ? 'ok' : 'on'}>
       <p className="big-number">
         {minutes}:{String(seconds % 60).padStart(2, '0')}
       </p>
@@ -56,7 +151,7 @@ function Timer({ block }: { block: OfType<'timer'> }) {
 const registry: Registry = {
   text: ({ block }) => <Markdown text={block.text} />,
   entity: ({ block }) => (
-    <Card>
+    <Card tone={entityTone(block.state)}>
       <EntityRow item={block} />
     </Card>
   ),
@@ -68,7 +163,7 @@ const registry: Registry = {
     </Card>
   ),
   calendar_events: ({ block }) => (
-    <Card>
+    <Card title="Agenda" icon={CalendarDays} tone="info">
       <ul className="events">
         {block.events.map((event) => (
           <li key={`${event.start}-${event.title}`}>
@@ -84,7 +179,11 @@ const registry: Registry = {
     </Card>
   ),
   weather: ({ block }) => (
-    <Card title={block.location}>
+    <Card
+      title={block.location ?? 'Météo'}
+      icon={WEATHER_ICONS[weatherKind(block.condition)]}
+      tone={weatherKind(block.condition) === 'sun' ? 'on' : 'info'}
+    >
       <p className="big-number">{Math.round(block.temperature)} °C</p>
       <p>{block.condition}</p>
       {block.forecast && (
@@ -99,7 +198,7 @@ const registry: Registry = {
     </Card>
   ),
   list: ({ block }) => (
-    <Card title={block.title}>
+    <Card title={block.title} icon={ListChecks} tone="info">
       <ul className="plain-list">
         {block.items.map((item) => (
           <li key={item}>{item}</li>
@@ -108,7 +207,7 @@ const registry: Registry = {
     </Card>
   ),
   table: ({ block }) => (
-    <Card title={block.title}>
+    <Card title={block.title} icon={Table2} tone="info">
       <table>
         <thead>
           <tr>
@@ -135,9 +234,13 @@ const registry: Registry = {
     </Card>
   ),
   // Confirmations are driven by the dedicated event; this only keeps the question visible.
-  confirm: ({ block }) => <Card>{block.label}</Card>,
+  confirm: ({ block }) => (
+    <Card title="À confirmer" icon={ShieldQuestion} tone="on">
+      {block.label}
+    </Card>
+  ),
   progress: ({ block }) => (
-    <Card title={block.label}>
+    <Card title={block.label} icon={Gauge} tone={block.value === 100 ? 'ok' : 'on'}>
       <div className="progress" role="progressbar" aria-valuenow={block.value}>
         <span style={{ width: `${block.value}%` }} />
       </div>
@@ -145,7 +248,7 @@ const registry: Registry = {
   ),
   timer: Timer,
   error: ({ block }) => (
-    <Card>
+    <Card title="Problème" icon={TriangleAlert} tone="alert">
       <p>{block.message}</p>
       <ActionButton action={block.action} />
     </Card>

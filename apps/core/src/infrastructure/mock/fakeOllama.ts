@@ -50,7 +50,7 @@ function decide(text: string, tools: WireTool[]) {
   const lower = text.toLowerCase();
   const find = (name: string) => tools.find((tool) => tool.function.name === name);
   const room = ['salon', 'chambre', 'cuisine', 'entrée'].find((item) => lower.includes(item));
-  if (/éteins|eteins|coupe/.test(lower) && find('light_turn_off')) {
+  if (/[ée]tein[st]|coupe/.test(lower) && find('light_turn_off')) {
     return { name: 'light_turn_off', arguments: { room: room ?? 'salon' } };
   }
   if (/allume/.test(lower) && find('light_turn_on')) {
@@ -75,6 +75,20 @@ function decide(text: string, tools: WireTool[]) {
     return { name: 'lock_door', arguments: { door: 'entrée' } };
   }
   return null;
+}
+
+const SHORTCUT_REQUEST = /^Phrase : « (.*) »\. Actions du raccourci : (.*)$/s;
+
+/**
+ * A shortcut asks for several actions at once: one call for each, invented devices included.
+ * An action that only names a target takes its verb from the phrase, as a real model must.
+ */
+function decideShortcut(text: string, tools: WireTool[]) {
+  const [, phrase = '', actions = ''] = SHORTCUT_REQUEST.exec(text) ?? [];
+  return actions.split(/\s+et\s+|\s+puis\s+|\s*\+\s*/).flatMap((part) => {
+    if (/licorne/i.test(part)) return { name: 'HassTurnOn', arguments: { name: 'licorne' } };
+    return decide(part, tools) ?? decide(`${phrase} ${part}`, tools) ?? [];
+  });
 }
 
 function fakeEmbedding(text: string): number[] {
@@ -271,6 +285,13 @@ export class FakeOllama {
       return response.end();
     }
     if (last?.role === 'user' && body.tools?.length) {
+      if (SHORTCUT_REQUEST.test(last.content)) {
+        const calls = decideShortcut(last.content, body.tools);
+        const message = { content: '', tool_calls: calls.map((call) => ({ function: call })) };
+        writeLine(response, { message });
+        writeLine(response, { done: true, eval_count: 12, eval_duration: 100_000_000 });
+        return response.end();
+      }
       const call = decide(last.content, body.tools);
       if (call) {
         await sleep(TOKEN_DELAY_MS * 4);

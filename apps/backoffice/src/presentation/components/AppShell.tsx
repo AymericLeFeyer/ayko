@@ -34,6 +34,7 @@ const NAV: { title: string; items: NavItem[] }[] = [
       { to: '/personas', label: 'Personas' },
       { to: '/terrain-de-jeu', label: 'Terrain de jeu' },
       { to: '/conversations', label: 'Conversations' },
+      { to: '/signalements', label: 'Signalements' },
     ],
   },
   {

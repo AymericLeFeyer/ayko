@@ -42,6 +42,24 @@ export class HomeContextService {
     return results;
   }
 
+  /**
+   * Devices a stored call may name, and the servers they belong to: another server's
+   * `name` argument (a task, a contact) has nothing to do with this list. Null when unknown.
+   */
+  async targets(tools: McpToolRecord[], roomId: string | null, signal?: AbortSignal) {
+    const sources = tools.filter((tool) => tool.readOnly && isContextTool(tool));
+    if (sources.length === 0) return null;
+    try {
+      const devices = (await this.load(sources, roomId, signal)).flatMap(parseLiveContext);
+      if (devices.length === 0) return null;
+      return { serverIds: new Set(sources.map((tool) => tool.serverId)), devices };
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      this.logger.log('warn', 'agent', `Contexte maison indisponible : ${errorMessage(error)}`);
+      return null;
+    }
+  }
+
   /** Never fails a request: without the list, the model is merely back to guessing. */
   async forPrompt(
     tools: McpToolRecord[],

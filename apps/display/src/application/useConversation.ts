@@ -2,6 +2,9 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import type { HouseActivity, RoomConfig } from '@ayko/contracts';
 import { initialSession, sessionReducer } from '@/domain/session';
 import { CoreSocket } from '@/infrastructure/CoreSocket';
+import { coreApi } from '@/infrastructure/coreApi';
+
+export type ReportState = 'idle' | 'saving' | 'saved' | 'failed';
 
 const UI_VERSION = '0.1.0';
 const FEED_LENGTH = 30;
@@ -23,6 +26,7 @@ export function useConversation(options: {
   const { token, roomId, idleTimeoutSeconds } = options;
   const [session, dispatch] = useReducer(sessionReducer, initialSession);
   const [feed, setFeed] = useState<HouseActivity[]>([]);
+  const [reportState, setReportState] = useState<ReportState>('idle');
   const socket = useRef<CoreSocket | null>(null);
   const handlers = useRef(options);
   handlers.current = options;
@@ -57,7 +61,11 @@ export function useConversation(options: {
     return () => link.stop();
   }, [token, roomId]);
 
-  const busy = session.exchanges.at(-1)?.pending ?? false;
+  const lastExchange = session.exchanges.at(-1);
+  const busy = lastExchange?.pending ?? false;
+
+  // A new exchange is a new thing to report.
+  useEffect(() => setReportState('idle'), [lastExchange?.id]);
 
   useEffect(() => {
     if (session.screen === 'idle' || busy || session.confirm) return undefined;
@@ -97,10 +105,21 @@ export function useConversation(options: {
     dispatch({ type: 'confirm.closed' });
   };
 
+  const report = () => {
+    dispatch({ type: 'activity' });
+    setReportState('saving');
+    coreApi.report(token).then(
+      () => setReportState('saved'),
+      () => setReportState('failed'),
+    );
+  };
+
   return {
     session,
     feed,
     busy,
+    reportState,
+    report,
     send,
     cancel,
     answerConfirm,

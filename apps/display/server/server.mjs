@@ -15,7 +15,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../dist');
 const PROXIED = [
   /^\/api\/v1\/pairing\/request$/,
   /^\/api\/v1\/pairing\/[0-9a-f-]{36}$/,
-  /^\/api\/v1\/device\/(config|widgets)$/,
+  /^\/api\/v1\/device\/(config|widgets|reports)$/,
 ];
 
 const TYPES = {

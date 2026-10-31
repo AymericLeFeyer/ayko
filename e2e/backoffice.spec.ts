@@ -94,6 +94,25 @@ test('the tool loop runs, then the shortcut replays without the LLM', async ({ p
   await expect(page.getByRole('button', { name: 'Allume la lumière du salon' })).toBeVisible();
 });
 
+test('a dictated shortcut is tagged manual and replays both actions', async ({ page }) => {
+  await login(page);
+  await page.getByRole('link', { name: 'Terrain de jeu', exact: true }).click();
+  await chooseRoom(page, 'Salon');
+
+  await ask(page, 'Quand je dis soirée film, tu éteins le salon et ferme le volet');
+  await expect(page.getByText('Raccourci créé pour Salon', { exact: false }).first()).toBeVisible();
+
+  await ask(page, 'soirée film');
+  await expect(page.getByText('Raccourci mémorisé').last()).toBeVisible();
+  await page.getByRole('button', { name: 'Oui' }).click();
+  await expect(page.getByText("C'est fait.", { exact: false }).last()).toBeVisible();
+
+  await page.getByRole('link', { name: 'Raccourcis', exact: true }).click();
+  const row = page.getByRole('row', { name: /soirée film/ });
+  await expect(row.getByText('Manuel')).toBeVisible();
+  await expect(row.getByText('Salon')).toBeVisible();
+});
+
 test('a sensitive tool waits for confirmation', async ({ page }) => {
   await login(page);
   await page.getByRole('link', { name: 'Terrain de jeu', exact: true }).click();

@@ -143,6 +143,17 @@ export class DrizzleConversationRepository implements ConversationRepository {
     return rows.map((row) => ({ ...row, requestId: row.requestId as string }));
   }
 
+  async recentRequests(deviceId: string, limit: number) {
+    const rows = this.db
+      .select({ id: requests.id, conversationId: requests.conversationId })
+      .from(requests)
+      .where(eq(requests.deviceId, deviceId))
+      .orderBy(desc(requests.createdAt))
+      .limit(limit)
+      .all();
+    return rows.reverse();
+  }
+
   async createRequest(request: RequestRecord) {
     this.db
       .insert(requests)

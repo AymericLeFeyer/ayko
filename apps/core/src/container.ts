@@ -18,7 +18,9 @@ import type { LlmProviderFactory } from './domain/llm/LlmProvider.js';
 import type { McpConnectionFactory } from './domain/mcp/McpConnection.js';
 import { openDatabase } from './infrastructure/db/client.js';
 import { DrizzleCacheRepository } from './infrastructure/db/repositories/DrizzleCacheRepository.js';
+import { ReportService } from './application/conversation/ReportService.js';
 import { DrizzleConversationRepository } from './infrastructure/db/repositories/DrizzleConversationRepository.js';
+import { DrizzleReportRepository } from './infrastructure/db/repositories/DrizzleReportRepository.js';
 import { DrizzleIdentityRepository } from './infrastructure/db/repositories/DrizzleIdentityRepository.js';
 import { DrizzleLlmRepository } from './infrastructure/db/repositories/DrizzleLlmRepository.js';
 import { DrizzleMcpRepository } from './infrastructure/db/repositories/DrizzleMcpRepository.js';
@@ -126,6 +128,7 @@ export async function createContainer(env: Env, overrides: ContainerOverrides = 
     env.mock,
   );
   const conversations = new DrizzleConversationRepository(db);
+  const reports = new ReportService(new DrizzleReportRepository(db), conversations, rooms);
 
   registry.bindInvalidation({
     tool: (toolId) => cache.invalidateTool(toolId),
@@ -182,6 +185,7 @@ export async function createContainer(env: Env, overrides: ContainerOverrides = 
     voice,
     system,
     conversations,
+    reports,
     async start() {
       await cache.refreshIndex();
       await registry.startAll();

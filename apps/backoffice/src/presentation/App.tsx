@@ -11,6 +11,7 @@ import { LogsPage } from './pages/LogsPage';
 import { McpPage } from './pages/McpPage';
 import { McpServerPage } from './pages/McpServerPage';
 import { MemoryPage } from './pages/MemoryPage';
+import { ReportsPage } from './pages/ReportsPage';
 import { OllamaPage } from './pages/OllamaPage';
 import { PersonasPage } from './pages/PersonasPage';
 import { PlaygroundPage } from './pages/PlaygroundPage';
@@ -54,6 +55,7 @@ export function App() {
         <Route path="personas" element={<PersonasPage />} />
         <Route path="terrain-de-jeu" element={<PlaygroundPage />} />
         <Route path="conversations" element={<ConversationsPage />} />
+        <Route path="signalements" element={<ReportsPage />} />
         <Route path="traces/:id" element={<TracePage />} />
         <Route path="pieces" element={<RoomsPage />} />
         <Route path="voix" element={<VoicePage />} />

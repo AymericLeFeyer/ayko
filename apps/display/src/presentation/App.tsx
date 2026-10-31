@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { roomConfig, type Room, type RoomConfig, type WidgetData } from '@ayko/contracts';
 import { useConversation } from '@/application/useConversation';
 import { useDevice } from '@/application/useDevice';
-import { enterFullscreen, useBurnInShift, useNow, useWakeLock } from '@/application/useKiosk';
+import { useBurnInShift, useNow, useWakeLock } from '@/application/useKiosk';
 import { isNight } from '@/domain/session';
 import { coreApi } from '@/infrastructure/coreApi';
 import { BlockActions } from './blocks/registry';
@@ -70,7 +70,6 @@ function Kiosk(props: {
       className="kiosk"
       data-theme={config.theme}
       data-lite={config.lightMode}
-      onPointerDown={enterFullscreen}
       style={{ opacity: dimmed ? Math.max(config.nightBrightness, 5) / 100 : 1 }}
     >
       {!session.connected && (
@@ -96,6 +95,7 @@ function Kiosk(props: {
             state={session.screen}
             keystrokes={session.keystrokes}
             exchanges={session.exchanges}
+            satellites={session.satellites}
             busy={conversation.busy}
             suggestions={config.suggestions}
             onSend={send}
@@ -103,6 +103,8 @@ function Kiosk(props: {
             onActivity={conversation.activity}
             onCancel={conversation.cancel}
             onHome={conversation.goHome}
+            reportState={conversation.reportState}
+            onReport={conversation.report}
           />
         )}
       </BlockActions.Provider>

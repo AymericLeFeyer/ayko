@@ -8,11 +8,11 @@ UTC timestamps, UUID identifiers.
 
 ## Authentication
 
-| Client     | Mechanism                                             |
-| ---------- | ----------------------------------------------------- |
-| Backoffice | `ayko_session` cookie (HttpOnly, SameSite=Strict)     |
-| Scripts    | `Authorization: Bearer <api key>`                     |
-| Tablets    | Device token: `/ws/display` and `/device/config` only |
+| Client     | Mechanism                                         |
+| ---------- | ------------------------------------------------- |
+| Backoffice | `ayko_session` cookie (HttpOnly, SameSite=Strict) |
+| Scripts    | `Authorization: Bearer <api key>`                 |
+| Tablets    | Device token: `/ws/display` and `/device/*` only  |
 
 ## REST
 
@@ -28,6 +28,7 @@ UTC timestamps, UUID identifiers.
 | Rooms         | `GET/POST /rooms`, `GET/PATCH/DELETE /rooms/{id}`, `GET /devices`, `GET/PATCH/DELETE /devices/{id}`, `POST /devices/{id}/command`, `GET /device/config` (device token)                                                                                                                |
 | History/cache | `GET /history/requests`, `GET /history/requests/{id}`, `GET /cache/entries`, `GET/PATCH/DELETE /cache/entries/{id}`, `POST /cache/entries/{id}/pin`, `POST /cache/promote`, `POST /cache/clear`, `GET/PUT /cache/settings`, `GET /cache/stats`                                        |
 | Memory        | `GET/POST /memories`, `PATCH/DELETE /memories/{id}`                                                                                                                                                                                                                                   |
+| Reports       | `GET /reports?limit=` (newest first, full traces), `DELETE /reports/{id}`, `POST /device/reports` (device token)                                                                                                                                                                      |
 | Voice         | `GET/PUT /voice/providers`, `POST /voice/providers/{id}/test`                                                                                                                                                                                                                         |
 | System        | `GET /metrics`, `GET /logs`, `GET /audit`, `GET/PUT /settings`, `POST /config/export`, `POST /config/import`, `GET /setup/wizard`, `POST /setup/wizard/complete`                                                                                                                      |
 
@@ -36,7 +37,14 @@ UTC timestamps, UUID identifiers.
 Ollama endpoints and the `ollama` components of `GET /metrics` carry `host`: CPU and RAM read from
 node_exporter, or null when it is unreachable.
 
-Device-token routes: `GET /device/config`, `GET /device/widgets`.
+Device-token routes: `GET /device/config`, `GET /device/widgets`, `POST /device/reports`.
+
+`POST /device/reports` copies the last 4 traces of the tablet's latest conversation and answers
+`{id}`, or 404 when it has none. Reports are never purged, unlike the traces they copy.
+
+Cache entries carry `origin`: `learned` (after a successful LLM run) or `manual` (dictated to Ayko
+with "quand je dis X, tu fais Y", pinned and tied to the room, or global without one). There is no
+route to create one: `POST /chat` and `user.text` handle the sentence.
 
 ## Rich blocks
 

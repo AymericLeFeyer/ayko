@@ -45,9 +45,3 @@ export function useBurnInShift() {
   }, []);
   return shift;
 }
-
-export function enterFullscreen() {
-  if (!document.fullscreenElement) {
-    void document.documentElement.requestFullscreen?.().catch(() => {});
-  }
-}

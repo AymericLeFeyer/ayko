@@ -10,7 +10,7 @@ import type { Container } from '../../../container.js';
 import { unauthorized } from '../../../shared/errors.js';
 import { body, param } from '../support.js';
 
-export function publicRoomRoutes(app: FastifyInstance, { rooms, widgets }: Container) {
+export function publicRoomRoutes(app: FastifyInstance, { reports, rooms, widgets }: Container) {
   const deviceFrom = async (authorization: string | undefined) => {
     const device = await rooms.authenticateDevice(authorization?.replace(/^Bearer /, '') ?? '');
     if (!device) throw unauthorized();
@@ -37,6 +37,12 @@ export function publicRoomRoutes(app: FastifyInstance, { rooms, widgets }: Conta
     const device = await deviceFrom(request.headers.authorization);
     return widgets.forRoom(device.roomId);
   });
+
+  app.post(
+    '/device/reports',
+    { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+    async (request) => reports.create(await deviceFrom(request.headers.authorization)),
+  );
 }
 
 export function adminRoomRoutes(app: FastifyInstance, { rooms }: Container) {

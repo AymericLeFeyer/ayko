@@ -17,6 +17,7 @@
   --on-lamp: #18232c;
   --danger: #ef7a68;
   --ok: #58bd8a;
+  --info: #72b4dc;
 }
 [data-theme='midnight'] {
   --bg: #000;
@@ -28,6 +29,7 @@
   --on-lamp: #18232c;
   --danger: #ef7a68;
   --ok: #58bd8a;
+  --info: #72b4dc;
 }
 [data-theme='light'] {
   --bg: #e9edea;
@@ -39,6 +41,7 @@
   --on-lamp: #fff;
   --danger: #b3372b;
   --ok: #2c7a53;
+  --info: #2a6d94;
 }
 
 html,
@@ -51,6 +54,7 @@ body,
 }
 
 .kiosk {
+  --tone: var(--muted);
   position: relative;
   height: 100dvh;
   overflow: hidden;
@@ -137,12 +141,10 @@ h1,
   overflow: hidden;
 }
 
-/* Conversation */
+/* Conversation: the orb in the middle, answers around it, words kept small at the edge */
 .conversation {
   display: grid;
-  grid-template-columns: minmax(240px, 30vw) minmax(0, 1fr);
-  /* Without this the row grows with the answer and the end is cut off instead of scrolling. */
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto auto;
   height: 100%;
   animation: rise 0.5s ease-out;
 }
@@ -152,58 +154,180 @@ h1,
     transform: scale(1.03);
   }
 }
-.conversation-orb {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  padding: 16px;
-  border-right: 1px solid var(--line);
-}
-.status {
-  min-height: 1.4em;
-  color: var(--muted);
-}
-.conversation-main {
+.stage {
+  --orb: min(34vh, 26vw);
+  /* Cards start just outside the orb and grow away from it. */
+  --orb-gap-x: calc(var(--orb) * 0.44);
+  --orb-gap-y: calc(var(--orb) * 0.04);
   position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  overflow: hidden;
+}
+.stage-actions {
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  left: 16px;
+  display: flex;
+  gap: 4px;
+  font-size: 18px;
+}
+.stage-actions .button {
+  min-height: 48px;
+  padding: 6px 12px;
+}
+.orbit-center {
+  grid-area: 1 / 1;
+}
+
+/* The full-size layer turns around the centre of the stage, which is the centre of the orb. */
+.satellite {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: orbit-in 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes orbit-in {
+  from {
+    opacity: 0;
+    transform: rotate(-80deg) scale(0.12);
+  }
+}
+.satellite-body {
+  position: absolute;
+  min-width: min(24vw, 240px);
+  max-width: min(28vw, 380px);
+  max-height: calc(50% - var(--orb-gap-y) - 12px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  scrollbar-width: none;
+  pointer-events: auto;
+}
+[data-slot='0'] .satellite-body {
+  bottom: calc(50% + var(--orb-gap-y));
+  left: calc(50% + var(--orb-gap-x));
+}
+/* Leaves room for the stage actions in the top left corner. */
+[data-slot='1'] .satellite-body {
+  right: calc(50% + var(--orb-gap-x));
+  bottom: calc(50% + var(--orb-gap-y));
+  max-height: calc(50% - var(--orb-gap-y) - 64px);
+}
+[data-slot='2'] .satellite-body {
+  top: calc(50% + var(--orb-gap-y));
+  left: calc(50% + var(--orb-gap-x));
+}
+.satellite-body .big-number {
+  font-size: 48px;
+}
+.satellite-body .forecast {
+  font-size: 17px;
+}
+.satellite-body .forecast li {
+  padding: 2px 0;
+}
+.satellite-body > .markdown,
+.satellite-body > .raw-block {
+  padding: 16px 20px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: 22px;
+}
+
+.thread {
+  position: absolute;
+  z-index: 1;
+  left: 28px;
+  bottom: 8px;
   display: flex;
   flex-direction: column;
-  min-width: 0;
-  min-height: 0;
+  width: min(30vw, 400px);
+  max-height: 46%;
 }
 .exchanges {
-  flex: 1;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
-  padding: 24px 32px;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 10px;
   user-select: text;
+  scrollbar-width: none;
+  mask-image: linear-gradient(to bottom, transparent, #000 32px);
+}
+.exchanges > :first-child {
+  margin-top: auto;
+  padding-top: 28px;
 }
 .exchange {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
+  animation: message-up 0.3s ease-out;
 }
-.question {
-  font-family: var(--font-display);
-  font-size: 30px;
-  font-weight: 600;
+@keyframes message-up {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+}
+.message {
+  max-width: 88%;
+  padding: 6px 12px;
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+  font-size: 18px;
+}
+.message-user {
+  align-self: flex-end;
+  border-bottom-right-radius: 3px;
+  background: color-mix(in srgb, var(--lamp) 24%, var(--surface));
+}
+.message-ayko {
+  align-self: flex-start;
+  border-bottom-left-radius: 3px;
+  background: var(--surface);
+}
+.message-ayko .markdown {
+  font-size: 18px;
 }
 .exchange-error {
+  align-self: flex-start;
   color: var(--danger);
+}
+.logs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 20px;
+  min-height: 34px;
+  padding: 0 32px;
+  color: var(--muted);
+  font-size: 15px;
+}
+.status {
+  min-height: 1.4em;
+}
+.log {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px 16px;
 }
 .composer {
   display: flex;
   gap: 12px;
   align-items: center;
-  padding: 12px 32px 20px;
-  border-top: 1px solid var(--line);
+  width: min(100%, 720px);
+  margin-inline: auto;
+  padding: 8px 28px 16px;
 }
 .composer input {
   flex: 1;
@@ -220,26 +344,17 @@ h1,
 }
 
 /* Activity */
-.activity {
-  color: var(--muted);
-  font-size: 19px;
-}
-.activity-toggle {
-  min-height: 48px;
-  text-decoration: underline;
-  text-underline-offset: 4px;
-}
 .step {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 .step small {
-  font-size: 16px;
+  font-size: 13px;
 }
 .step-dot {
-  width: 9px;
-  height: 9px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--ok);
   flex: none;
@@ -258,15 +373,52 @@ h1,
 }
 
 /* Cards */
+[data-tone='on'] {
+  --tone: var(--lamp);
+}
+[data-tone='ok'] {
+  --tone: var(--ok);
+}
+[data-tone='info'] {
+  --tone: var(--info);
+}
+[data-tone='alert'] {
+  --tone: var(--danger);
+}
+[data-tone='off'] {
+  --tone: var(--muted);
+}
 .card {
+  position: relative;
   padding: 16px 20px;
-  border-radius: 12px;
+  border-radius: 16px;
   background: var(--surface);
   border: 1px solid var(--line);
 }
+.card[data-tone]:not([data-tone='off']) {
+  background: color-mix(in srgb, var(--tone) 9%, var(--surface));
+  border-color: color-mix(in srgb, var(--tone) 40%, var(--line));
+}
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
 .card-title {
-  margin-bottom: 8px;
+  min-width: 0;
   font-size: 24px;
+  line-height: 1.2;
+}
+.tone-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--tone) 20%, transparent);
+  color: var(--tone);
 }
 .big-number {
   font-family: var(--font-display);
@@ -276,15 +428,54 @@ h1,
 }
 .entity {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
+  gap: 8px 12px;
   min-height: 56px;
 }
-.entity-name {
+.entity + .entity {
+  margin-top: 6px;
+}
+.entity-action {
+  position: relative;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+/* Alone in its card, the row makes the whole card the touch target. */
+.card > .entity-action:only-child {
+  position: static;
+}
+.entity-action::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+}
+.entity-action:active::after {
+  background: color-mix(in srgb, var(--tone) 18%, transparent);
+}
+.entity-cta {
+  flex: none;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--tone) 45%, var(--line));
+  color: var(--text);
+  font-size: 16px;
+}
+.entity-text {
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.entity-name {
+  overflow-wrap: anywhere;
+  line-height: 1.2;
 }
 .entity-state {
-  color: var(--lamp);
+  color: var(--tone);
+  font-size: 18px;
   font-weight: 600;
 }
 .events li,
@@ -319,10 +510,13 @@ h1,
 .jump-to-end {
   position: absolute;
   left: 50%;
-  bottom: 108px;
+  bottom: 8px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  min-height: 48px;
+  white-space: nowrap;
+  font-size: 18px;
   transform: translateX(-50%);
 }
 
@@ -432,7 +626,7 @@ td {
 .progress span {
   display: block;
   height: 100%;
-  background: var(--lamp);
+  background: var(--tone, var(--lamp));
 }
 
 /* Controls: every target is at least 48 px */
@@ -455,6 +649,11 @@ td {
   border-color: transparent;
   background: none;
   color: var(--muted);
+}
+.button-report {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 .button-primary {
   border-color: var(--lamp);
@@ -597,10 +796,6 @@ td {
   inset: 0;
   overflow: visible;
 }
-.orb-ticks line {
-  stroke: var(--line);
-  stroke-width: 1.5;
-}
 .orb-ring {
   fill: none;
   stroke: var(--lamp);
@@ -672,17 +867,35 @@ td {
     grid-template-columns: 1fr;
     align-content: center;
   }
-  .conversation {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
+  .orbit-center {
+    align-self: start;
+    margin-top: 28vh;
   }
-  .conversation-orb {
-    flex-direction: row;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
+  .satellite-body,
+  [data-slot='1'] .satellite-body {
+    max-width: 45vw;
+    max-height: 20vh;
   }
-  .conversation-orb .orb {
-    width: 96px !important;
-    height: 96px !important;
+  [data-slot='0'] .satellite-body {
+    top: 76px;
+    right: 28px;
+    bottom: auto;
+    left: auto;
+  }
+  [data-slot='1'] .satellite-body {
+    top: 76px;
+    right: auto;
+    bottom: auto;
+    left: 28px;
+  }
+  [data-slot='2'] .satellite-body {
+    top: 54vh;
+    left: 28px;
+    max-width: calc(100% - 56px);
+  }
+  .thread {
+    right: 28px;
+    width: auto;
+    max-height: 18vh;
   }
 }

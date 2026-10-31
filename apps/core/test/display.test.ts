@@ -7,6 +7,7 @@ import {
   type McpTool,
   type PairingCreated,
   type PairingPoll,
+  type Report,
   type WidgetData,
 } from '@ayko/contracts';
 import { startHarness, type Harness } from './harness.js';
@@ -73,6 +74,60 @@ describe('home widgets', () => {
   it('gives old rooms the defaults of new settings', async () => {
     const salon = await h.room('Salon');
     expect(salon.config).toMatchObject({ lightMode: false, nightStart: '22:00' });
+  });
+});
+
+describe('reports', () => {
+  const report = (token: string) =>
+    h.app.inject({
+      method: 'POST',
+      url: '/api/v1/device/reports',
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+  const ask = (socket: WebSocket, text: string, room: string) =>
+    new Promise<void>((resolve) => {
+      const onMessage = (raw: WebSocket.RawData) => {
+        const { type } = JSON.parse(raw.toString()) as { type: string };
+        if (type !== 'answer.done') return;
+        socket.off('message', onMessage);
+        resolve();
+      };
+      socket.on('message', onMessage);
+      socket.send(
+        JSON.stringify({
+          type: 'user.text',
+          room,
+          ts: new Date().toISOString(),
+          payload: { text },
+        }),
+      );
+    });
+
+  it('freezes the last four exchanges of the tablet, oldest first', async () => {
+    const salon = await h.room('Salon');
+    const token = await pair(salon.id);
+    expect((await report(token)).statusCode).toBe(404);
+
+    const socket = new WebSocket(`${h.baseUrl.replace('http', 'ws')}/ws/display?token=${token}`);
+    await new Promise((resolve) => socket.once('open', resolve));
+    for (const text of ['Un', 'Deux', 'Trois', 'Quatre', 'Cinq']) {
+      await ask(socket, text, salon.id);
+    }
+    socket.close();
+
+    expect((await report(token)).statusCode).toBe(200);
+    const [saved] = await h.api<Report[]>('GET', '/reports?limit=1');
+    expect(saved).toMatchObject({ deviceName: expect.any(String), roomName: 'Salon' });
+    expect(saved?.traces.map((trace) => trace.text)).toEqual(['Deux', 'Trois', 'Quatre', 'Cinq']);
+    expect(saved?.traces[3]?.answer).toBeTruthy();
+
+    await h.api('DELETE', `/reports/${saved?.id}`);
+    expect(await h.api<Report[]>('GET', '/reports')).toEqual([]);
+  });
+
+  it('refuses an unknown device token', async () => {
+    expect((await report('nope')).statusCode).toBe(401);
   });
 });
 

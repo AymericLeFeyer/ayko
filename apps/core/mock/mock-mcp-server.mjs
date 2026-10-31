@@ -128,6 +128,15 @@ server.registerTool(
 );
 
 server.registerTool(
+  'HassTurnOn',
+  {
+    description: 'Allume un appareil par son nom',
+    inputSchema: { name: z.string() },
+  },
+  async ({ name }) => text(`${name} allumé.`),
+);
+
+server.registerTool(
   'lock_door',
   { description: 'Verrouille une porte', inputSchema: { door: z.string() } },
   async ({ door }) => text(`Porte ${door} verrouillée.`),

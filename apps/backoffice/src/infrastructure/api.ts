@@ -43,6 +43,7 @@ import type {
   PersonaPreviewRequest,
   PersonaVersion,
   PullProgress,
+  Report,
   Room,
   RoomInput,
   RunningModel,
@@ -183,6 +184,11 @@ export const memoryApi = {
   update: (id: string, input: Partial<MemoryInput>) =>
     http<Memory>('PATCH', `/memories/${id}`, input),
   remove: (id: string) => http('DELETE', `/memories/${id}`),
+};
+
+export const reportApi = {
+  list: (limit?: number) => get<Report[]>(withQuery('/reports', { limit })),
+  remove: (id: string) => http('DELETE', `/reports/${id}`),
 };
 
 export const voiceApi = {

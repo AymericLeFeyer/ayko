@@ -18,6 +18,7 @@ import {
   isActionRequest,
   isCacheableText,
   normalizeText,
+  sameCommand,
 } from '../../domain/cache/services/normalizeText.js';
 import { cosineSimilarity } from '../../domain/cache/services/similarity.js';
 import type { McpToolRecord } from '../../domain/mcp/repositories/McpRepository.js';
@@ -64,7 +65,7 @@ const provesNothing = (text: string, onlyReads: boolean) => onlyReads && isActio
 
 const usable = (entry: CacheEntryRecord) =>
   (entry.status === 'active' || entry.status === 'pinned' || entry.status === 'doubtful') &&
-  !provesNothing(entry.sampleText, entry.kind === 'read');
+  (entry.origin === 'manual' || !provesNothing(entry.sampleText, entry.kind === 'read'));
 
 export class CacheService {
   /** Top N in RAM: the instant path, avoiding even a SQLite read. */
@@ -121,15 +122,18 @@ export class CacheService {
     roomId: string | null,
     signal?: AbortSignal,
   ): Promise<CacheMatch | null> {
-    if (!isCacheableText(text)) return null;
     const normalized = normalizeText(text);
     if (!normalized) return null;
     const fromIndex =
       this.index.get(keyFor(normalized, roomId, false)) ??
       this.index.get(keyFor(normalized, roomId, true));
     const exact = fromIndex ?? (await this.repository.lookup(normalized, roomId));
-    if (exact) return usable(exact) ? { entry: exact, matchType: 'exact' } : null;
-    return this.lookupApproximate(text, roomId, signal);
+    // A phrase someone chose is meant literally, even one that looks context-dependent.
+    const cacheable = isCacheableText(text);
+    if (exact && (cacheable || exact.origin === 'manual')) {
+      return usable(exact) ? { entry: exact, matchType: 'exact' } : null;
+    }
+    return cacheable ? this.lookupApproximate(text, roomId, signal) : null;
   }
 
   private async lookupApproximate(text: string, roomId: string | null, signal?: AbortSignal) {
@@ -144,8 +148,10 @@ export class CacheService {
         text,
         signal ? AbortSignal.any([signal, timeout]) : timeout,
       );
+      const normalized = normalizeText(text);
       let best: { entry: CacheEntryRecord; score: number } | null = null;
       for (const entry of await this.repository.listEmbedded(roomId)) {
+        if (!sameCommand(normalized, entry.normalizedText)) continue;
         const score = cosineSimilarity(vector, entry.embedding ?? []);
         if (score >= settings.similarityThreshold && score > (best?.score ?? 0)) {
           best = { entry, score };
@@ -250,7 +256,8 @@ export class CacheService {
     if (!normalized) return;
     const cacheKey = keyFor(normalized, input.roomId, false);
     const existing = await this.repository.findByKey(cacheKey);
-    if (existing?.status === 'excluded') return;
+    // What someone dictated is never overwritten by what the model happened to do.
+    if (existing?.status === 'excluded' || existing?.origin === 'manual') return;
 
     const kind = input.calls.every(({ tool }) => tool.readOnly) ? 'read' : 'action';
     const calls: CachedCall[] = input.calls.map(({ tool, arguments: args }) => ({
@@ -276,6 +283,7 @@ export class CacheService {
         existing?.status === 'pinned' || existing?.status === 'doubtful'
           ? existing.status
           : 'active',
+      origin: 'learned',
       hits: existing?.hits ?? 0,
       failures: existing?.status === 'doubtful' ? existing.failures : 0,
       occurrences: (existing?.occurrences ?? 0) + 1,
@@ -290,6 +298,54 @@ export class CacheService {
     await this.repository.saveEntry(entry);
     await this.repository.linkHistory(input.historyKey, entry.id);
     await this.syncIndex(entry);
+  }
+
+  /** A dictated shortcut, pinned at once. Without a room, it holds for the whole house. */
+  async saveManual(input: {
+    text: string;
+    roomId: string | null;
+    calls: Pick<ExecutedCall, 'tool' | 'arguments'>[];
+    durationMs: number;
+  }) {
+    const settings = await this.settings();
+    const normalized = normalizeText(input.text);
+    const global = input.roomId === null;
+    const cacheKey = keyFor(normalized, input.roomId, global);
+    const existing = await this.repository.findByKey(cacheKey);
+    const kind = input.calls.every(({ tool }) => tool.readOnly) ? 'read' : 'action';
+    const entry: CacheEntryRecord = {
+      id: existing?.id ?? randomUUID(),
+      cacheKey,
+      normalizedText: normalized,
+      sampleText: input.text,
+      roomId: input.roomId,
+      global,
+      kind,
+      calls: input.calls.map(({ tool, arguments: args }) => ({
+        toolId: tool.id,
+        serverId: tool.serverId,
+        toolName: tool.name,
+        arguments: args,
+      })),
+      response: kind === 'action' ? settings.defaultResponse : '',
+      aliases: existing?.aliases ?? [],
+      aliasKeys: existing?.aliasKeys ?? [],
+      status: 'pinned',
+      origin: 'manual',
+      hits: existing?.hits ?? 0,
+      failures: 0,
+      occurrences: existing?.occurrences ?? 0,
+      ttlSeconds: existing?.ttlSeconds ?? null,
+      lastResult: null,
+      lastResultAt: null,
+      llmDurationMs: input.durationMs,
+      embedding: existing?.embedding ?? (await this.computeEmbedding(input.text)),
+      createdAt: existing?.createdAt ?? new Date().toISOString(),
+      lastHitAt: existing?.lastHitAt ?? null,
+    };
+    await this.repository.saveEntry(entry);
+    await this.refreshIndex();
+    return entry;
   }
 
   private async computeEmbedding(text: string) {
@@ -376,6 +432,7 @@ export class CacheService {
         roomId: history.roomId,
         global: false,
         kind: 'action' as const,
+        origin: 'learned' as const,
         response: settings.defaultResponse,
         aliases: [],
         aliasKeys: [],

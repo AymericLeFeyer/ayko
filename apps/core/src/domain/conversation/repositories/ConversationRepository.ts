@@ -72,6 +72,11 @@ export interface ConversationRepository {
     sinceIso: string,
   ): Promise<string | null>;
   toolCallsOf(requestIds: string[]): Promise<PastToolCall[]>;
+  /** Latest requests of a tablet in chronological order. */
+  recentRequests(
+    deviceId: string,
+    limit: number,
+  ): Promise<{ id: string; conversationId: string | null }[]>;
   createRequest(request: RequestRecord): Promise<void>;
   updateRequest(id: string, update: RequestUpdate): Promise<void>;
   addStep(step: StepRecord): Promise<void>;

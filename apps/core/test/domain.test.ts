@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { isCacheableText, normalizeText } from '../src/domain/cache/services/normalizeText.js';
+import { actionBlock } from '../src/domain/mcp/services/toolBlocks.js';
+import {
+  isCacheableText,
+  normalizeText,
+  sameCommand,
+} from '../src/domain/cache/services/normalizeText.js';
 import { cosineSimilarity } from '../src/domain/cache/services/similarity.js';
 import { fitHistory } from '../src/domain/conversation/services/contextWindow.js';
 import {
@@ -8,6 +13,20 @@ import {
 } from '../src/domain/llm/services/structuredTools.js';
 import { defaultPolicy, resolvePolicy } from '../src/domain/mcp/services/toolPolicy.js';
 import { renderPrompt, TOOL_SAFETY_CLAUSE } from '../src/domain/persona/services/renderPrompt.js';
+
+describe('sameCommand', () => {
+  const same = (a: string, b: string) => sameCommand(normalizeText(a), normalizeText(b));
+
+  it('tells apart the odd exchanges reported from the tablets', () => {
+    expect(same('met le chauffage sur 20', 'met le chauffage sur 18')).toBe(false);
+    expect(same('éteint la lumière', 'allume la lumière')).toBe(false);
+  });
+
+  it('still accepts a rewording of the same command', () => {
+    expect(same('allume le salon', 'allume la lumière du salon')).toBe(true);
+    expect(same('mets le chauffage à 20', 'met le chauffage du bureau sur 20')).toBe(true);
+  });
+});
 
 describe('normalizeText', () => {
   it.each([
@@ -117,5 +136,31 @@ describe('cosineSimilarity', () => {
     expect(cosineSimilarity([1, 2], [1, 2])).toBeCloseTo(1);
     expect(cosineSimilarity([1, 0], [0, 1])).toBe(0);
     expect(cosineSimilarity([1], [1, 2])).toBe(0);
+  });
+});
+
+describe('actionBlock', () => {
+  it('gives plain-text actions a card with their new state', () => {
+    expect(actionBlock('HassTurnOn', 'Allumer', { name: 'Lampe salon' })).toEqual({
+      type: 'entity',
+      name: 'Lampe salon',
+      state: 'Allumé',
+      action: { label: 'Éteindre', text: 'Éteins Lampe salon' },
+    });
+    expect(actionBlock('light_turn_off', 'Éteindre', { room: 'salon' })).toMatchObject({
+      name: 'salon',
+      state: 'Éteint',
+      action: { label: 'Allumer', text: 'Allume salon' },
+    });
+    expect(actionBlock('cover_set', 'Volet', {})).toEqual({
+      type: 'entity',
+      name: 'Volet',
+      state: 'Fait',
+    });
+  });
+
+  it('offers no way back without a known target', () => {
+    expect(actionBlock('HassTurnOn', 'Allumer', {})).not.toHaveProperty('action');
+    expect(actionBlock('cover_set', 'Volet', { name: 'Volet' })).not.toHaveProperty('action');
   });
 });

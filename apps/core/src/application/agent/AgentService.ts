@@ -1,9 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import type { AgentEvent, ModelParams, StepKind, StepStatus } from '@ayko/contracts';
 import type { ConversationRepository } from '../../domain/conversation/repositories/ConversationRepository.js';
-import { isActionRequest } from '../../domain/cache/services/normalizeText.js';
+import { isActionRequest, normalizeText } from '../../domain/cache/services/normalizeText.js';
+import {
+  parseShortcutCommand,
+  type ShortcutCommand,
+} from '../../domain/cache/services/shortcutCommand.js';
 import { fitHistory } from '../../domain/conversation/services/contextWindow.js';
+import { capabilitiesOf, routingPrompt } from '../../domain/conversation/services/routingPrompt.js';
 import { withToolHistory } from '../../domain/conversation/services/toolHistory.js';
+import { unknownTarget } from '../../domain/home/services/homeContext.js';
+import { argumentProblem } from '../../domain/mcp/services/toolArguments.js';
+import { isContextTool, isNeverCached } from '../../domain/mcp/services/toolPolicy.js';
 import { parseMemoryCommand } from '../../domain/memory/services/memoryRules.js';
 import type { CacheEntryRecord } from '../../domain/cache/repositories/CacheRepository.js';
 import type { LlmMessage, LlmTool, LlmToolCall } from '../../domain/llm/LlmProvider.js';
@@ -13,7 +21,7 @@ import {
   structuredToolPrompt,
 } from '../../domain/llm/services/structuredTools.js';
 import type { McpToolRecord } from '../../domain/mcp/repositories/McpRepository.js';
-import { blocksFromResult } from '../../domain/mcp/services/toolBlocks.js';
+import { actionBlock, blocksFromResult } from '../../domain/mcp/services/toolBlocks.js';
 import { renderPrompt } from '../../domain/persona/services/renderPrompt.js';
 import type { Logger } from '../../domain/system/Logger.js';
 import { isAbortError, Semaphore } from '../../shared/async.js';
@@ -43,16 +51,26 @@ export interface AgentInput {
 
 const DEFAULT_NUM_CTX = 4096;
 const ACTION_CLAUSE =
-  "Pour agir sur la maison, tu dois appeler l'outil correspondant. Lire l'état d'un appareil " +
-  "ne le change pas. N'annonce jamais qu'une action est faite sans le résultat de son outil.";
+  "Pour agir, tu dois appeler l'outil correspondant. Lire une information ne change rien. " +
+  "N'annonce jamais qu'une action est faite sans le résultat de son outil.";
 const ACTION_REMINDER =
   "[Rappel] Tu n'as appelé aucun outil d'action, donc rien n'a été fait. Appelle maintenant " +
   "l'outil qui exécute la demande, ou explique pourquoi c'est impossible.";
-const ACTION_NOT_DONE =
-  "Je n'ai pas réussi à exécuter cette action, rien n'a été fait. Vérifie le nom de l'appareil.";
-const ROUTING_PROMPT =
-  "Détermine si la demande suivante nécessite d'agir sur la maison ou de consulter une " +
-  'information externe. Réponds par un seul mot : OUTILS ou DIRECT.';
+const ACTION_NOT_DONE = "Je n'ai pas réussi à exécuter cette action, rien n'a été fait.";
+const shortcutRequest = (phrase: string, actions: string) =>
+  `Phrase : « ${phrase} ». Actions du raccourci : ${actions}`;
+const SHORTCUT_CLAUSE =
+  "Tu prépares un raccourci : rien n'est exécuté maintenant, tes appels d'outils sont " +
+  'seulement enregistrés. Lis la phrase et les actions ensemble : si la phrase dit quoi faire ' +
+  '(allumer, éteindre) et les actions seulement sur quoi, fais cela sur cette cible. Appelle ' +
+  "un outil par action, dans l'ordre, avec les noms exacts des appareils. N'ajoute aucune " +
+  "action. Si une action est impossible, explique-le sans appeler d'outil.";
+const SHORTCUT_NOTED =
+  "Action enregistrée, non exécutée. Appelle l'outil suivant s'il reste une action, sinon " +
+  'réponds simplement OK.';
+const SHORTCUT_NOT_UNDERSTOOD =
+  "Je n'ai pas trouvé d'outil pour faire ça : aucun raccourci n'a été créé.";
+const SHORTCUTS_OFF = 'Les raccourcis sont désactivés ici : aucun raccourci créé.';
 
 /** Everything one request accumulates while it runs. */
 interface Run {
@@ -79,6 +97,19 @@ class ReplayFailure extends Error {}
 
 /** Shown to the family on tablets, so the admin's wording wins over the technical name. */
 const toolLabel = (tool: McpToolRecord) => tool.customDescription ?? tool.description ?? tool.name;
+
+const toLlmTool = (item: ExposedTool): LlmTool => ({
+  name: item.exposedName,
+  description: item.description,
+  parameters: item.tool.inputSchema,
+});
+
+const callLabel = ({ tool, arguments: args }: PlannedCall) => {
+  const values = Object.values(args).map(String).join(', ');
+  return values ? `${toolLabel(tool)} (${values})` : toolLabel(tool);
+};
+
+type PlannedCall = Pick<ExecutedCall, 'tool' | 'arguments'>;
 
 export class AgentService {
   private readonly active = new Map<string, { controller: AbortController }>();
@@ -241,7 +272,204 @@ export class AgentService {
     return answer;
   }
 
+  private say(run: Run, answer: string) {
+    run.emit({ type: 'state.changed', requestId: run.requestId, state: 'answering' });
+    run.emit({ type: 'answer.delta', requestId: run.requestId, text: answer });
+    return answer;
+  }
+
+  /** Waits for the model; every path that needs an inference goes through here. */
+  private async withModel<T>(run: Run, work: () => Promise<T>) {
+    const agent = (await this.settings.get()).agent;
+    this.queue.limit = agent.maxConcurrentRequests;
+    const wait = this.queue.busy
+      ? await this.startStep(run, 'queue', 'En attente de disponibilité du modèle')
+      : null;
+    const release = await this.queue.acquire(run.signal);
+    await wait?.finish('done');
+    try {
+      return await work();
+    } finally {
+      release();
+    }
+  }
+
+  /**
+   * Code decides that this is a shortcut; the model only translates the orders into real
+   * tool calls, which are stored and never run. Replaying goes through `executeTool`, so
+   * policies and confirmations apply at each use rather than once at creation.
+   */
+  private async teachShortcut(run: Run, command: ShortcutCommand) {
+    if (!(await this.cache.isEnabledFor(run.roomId))) return this.say(run, SHORTCUTS_OFF);
+    const vague = command.triggers.find((phrase) => !normalizeText(phrase));
+    if (vague !== undefined) {
+      return this.say(run, `« ${vague} » est trop vague pour servir de raccourci.`);
+    }
+    const { model, params } = await this.resolveModel(run);
+    run.model = model;
+    await this.conversations.updateRequest(run.requestId, { model });
+
+    const exposed = await this.registry.toolsFor(run.roomId);
+    const offered = exposed.filter(
+      ({ tool }) => tool.cacheEnabled && !isNeverCached(tool.name) && !isContextTool(tool),
+    );
+    const tools = offered.map(toLlmTool);
+    const native =
+      tools.length > 0 ? await this.ollama.supportsTools(model).catch(() => true) : true;
+    const { persona, sections } = await this.promptSections(run, exposed, command.actions);
+    const systemPrompt = [
+      params.systemPrompt,
+      ...sections,
+      SHORTCUT_CLAUSE,
+      native ? null : structuredToolPrompt(tools),
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+    await this.conversations.updateRequest(run.requestId, { personaName: persona.name });
+
+    const targets = await this.homeContext.targets(
+      exposed.map((item) => item.tool),
+      run.roomId,
+      run.signal,
+    );
+    const problemWith = ({ tool, arguments: args }: PlannedCall) => {
+      const invalid = argumentProblem(tool.inputSchema, args);
+      if (invalid) return invalid;
+      const unknown = targets?.serverIds.has(tool.serverId)
+        ? unknownTarget(args, targets.devices)
+        : null;
+      return unknown ? `appareil inconnu : ${unknown}` : null;
+    };
+
+    // All or nothing: half of "allume ou éteins" would be worse than a clear refusal.
+    const plans: { phrase: string; calls: PlannedCall[] }[] = [];
+    for (const phrase of command.triggers) {
+      // History stays in: "cette lumière" points at what was just talked about.
+      const messages = await this.conversationMessages(run, {
+        exposed,
+        systemPrompt,
+        userText: shortcutRequest(phrase, command.actions),
+        numCtx: params.numCtx ?? DEFAULT_NUM_CTX,
+        tools: native ? tools : [],
+        native,
+      });
+      await this.conversations.updateRequest(run.requestId, { prompt: { messages, tools } });
+      const { calls, refused } = await this.planShortcut(run, {
+        model,
+        params,
+        messages,
+        offered,
+        native,
+        problemWith,
+      });
+      if (refused.length > 0) {
+        return this.say(run, `Aucun raccourci créé (${refused.join(' ; ')}).`);
+      }
+      if (calls.length === 0) return this.say(run, SHORTCUT_NOT_UNDERSTOOD);
+      plans.push({ phrase, calls });
+    }
+
+    for (const { phrase, calls } of plans) {
+      await this.cache.saveManual({
+        text: phrase,
+        roomId: run.roomId,
+        calls,
+        durationMs: performance.now() - run.startedAt,
+      });
+    }
+    const { name: roomName } = await this.rooms.describeRoom(run.roomId);
+    const confirmed = [
+      ...new Set(
+        plans
+          .flatMap(({ calls }) => calls)
+          .filter(({ tool }) => this.registry.policyFor(tool, run.roomId) === 'confirm')
+          .map(callLabel),
+      ),
+    ];
+    const created = plans.length > 1 ? 'Raccourcis créés' : 'Raccourci créé';
+    return this.say(
+      run,
+      [
+        `${created} pour ${roomName ?? 'toute la maison'} :`,
+        ...plans.map(
+          ({ phrase, calls }) => `« ${phrase} » lancera ${calls.map(callLabel).join(' ; ')}.`,
+        ),
+        "Rien n'a été exécuté pour l'instant.",
+        confirmed.length > 0
+          ? `Confirmation demandée à chaque fois pour : ${confirmed.join(' ; ')}.`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(' '),
+    );
+  }
+
+  /** The model's calls for one phrase, captured here and never run. */
+  private async planShortcut(
+    run: Run,
+    input: {
+      model: string;
+      params: Partial<ModelParams>;
+      messages: LlmMessage[];
+      offered: ExposedTool[];
+      native: boolean;
+      problemWith: (call: PlannedCall) => string | null;
+    },
+  ) {
+    const { model, params, messages, offered, native, problemWith } = input;
+    const { agent } = await this.settings.get();
+    const tools = offered.map(toLlmTool);
+    const planned: PlannedCall[] = [];
+    let refused: string[] = [];
+    for (let iteration = 0; iteration < agent.maxIterations; iteration += 1) {
+      const step = await this.startStep(run, 'thinking', 'Préparation du raccourci');
+      const { text, toolCalls } = await this.streamTurn(run, {
+        model,
+        params,
+        messages,
+        tools: native ? tools : [],
+        structuredTools: native ? null : tools,
+        holdText: true,
+      });
+      await step.finish('done', { iteration, toolCalls });
+      if (toolCalls.length === 0) break;
+      messages.push({
+        role: 'assistant',
+        content: text,
+        toolCalls: native ? toolCalls : undefined,
+      });
+      refused = [];
+      const replies = toolCalls.map((call) => {
+        const tool = offered.find((item) => item.exposedName === call.name)?.tool;
+        const problem = tool
+          ? problemWith({ tool, arguments: call.arguments })
+          : `outil inconnu : ${call.name}`;
+        if (problem || !tool) {
+          refused.push(problem ?? call.name);
+          return `Refusé, ${problem}. Corrige cet appel ou explique le problème.`;
+        }
+        const key = JSON.stringify([tool.id, call.arguments]);
+        const repeated = planned.some(
+          (item) => JSON.stringify([item.tool.id, item.arguments]) === key,
+        );
+        if (!repeated) planned.push({ tool, arguments: call.arguments });
+        return SHORTCUT_NOTED;
+      });
+      messages.push(...this.toolMessages(toolCalls, replies, native));
+    }
+
+    // Models read before acting out of habit; a replay has no use for what they looked up.
+    const actions = planned.filter(({ tool }) => !tool.readOnly);
+    return { calls: actions.length > 0 ? actions : planned, refused };
+  }
+
   private async execute(run: Run): Promise<{ answer: string; cacheHit: boolean }> {
+    // Before memory commands: "retiens que quand je dis X, fais Y" is a shortcut, not a fact.
+    const shortcut = parseShortcutCommand(run.input.text);
+    if (shortcut) {
+      const answer = await this.withModel(run, () => this.teachShortcut(run, shortcut));
+      return { answer, cacheHit: false };
+    }
     const remembered = await this.runMemoryCommand(run);
     if (remembered) return { answer: remembered, cacheHit: false };
     const useCache = !run.input.bypassCache && (await this.cache.isEnabledFor(run.roomId));
@@ -265,18 +493,7 @@ export class AgentService {
       }
     }
 
-    const agent = (await this.settings.get()).agent;
-    this.queue.limit = agent.maxConcurrentRequests;
-    const wait = this.queue.busy
-      ? await this.startStep(run, 'queue', 'En attente de disponibilité du modèle')
-      : null;
-    const release = await this.queue.acquire(run.signal);
-    await wait?.finish('done');
-    try {
-      return { answer: await this.llmLoop(run), cacheHit: false };
-    } finally {
-      release();
-    }
+    return { answer: await this.withModel(run, () => this.llmLoop(run)), cacheHit: false };
   }
 
   private async startStep(run: Run, kind: StepKind, label: string, detail: unknown = null) {
@@ -392,6 +609,9 @@ export class AgentService {
       result: result.text.slice(0, agent.toolResultMaxChars),
     });
     const blocks = result.isError ? [] : blocksFromResult(result.raw);
+    if (!result.isError && blocks.length === 0 && !tool.readOnly) {
+      blocks.push(actionBlock(tool.name, toolLabel(tool), args));
+    }
     if (blocks.length > 0) run.emit({ type: 'answer.blocks', requestId: run.requestId, blocks });
     if (result.isError) run.anyToolFailed = true;
     else run.calls.push({ tool, arguments: args, result: result.text });
@@ -412,6 +632,8 @@ export class AgentService {
       if (!(error instanceof ReplayFailure)) throw error;
       await step.finish('error', { entryId: entry.id, reason: error.message });
       await this.cache.recordFailure(entry, error.message);
+      // The phrase means nothing to the model, which would chat instead of admitting it.
+      if (entry.origin === 'manual') return `Le raccourci a échoué : ${error.message}`;
       run.calls = [];
       run.anyToolFailed = false;
       return null;
@@ -464,10 +686,14 @@ export class AgentService {
     return { model, params: (role?.params ?? {}) as Partial<ModelParams> };
   }
 
-  private async routeNeedsTools(run: Run) {
+  private async routeNeedsTools(run: Run, exposed: ExposedTool[]) {
+    if (exposed.length === 0) return false;
     const { agent } = await this.settings.get();
     const role = await this.ollama.getRole('routing');
     if (!agent.routingEnabled || !role?.model) return true;
+    const capabilities = capabilitiesOf(
+      exposed.map(({ tool, exposedName }) => ({ serverName: tool.serverName, exposedName })),
+    );
     const step = await this.startStep(run, 'routing', 'Analyse de la demande');
     let output = '';
     try {
@@ -476,7 +702,7 @@ export class AgentService {
           model: role.model,
           params: role.params,
           messages: [
-            { role: 'system', content: role.params.systemPrompt ?? ROUTING_PROMPT },
+            { role: 'system', content: role.params.systemPrompt ?? routingPrompt(capabilities) },
             { role: 'user', content: run.input.text },
           ],
         },
@@ -495,12 +721,9 @@ export class AgentService {
     }
   }
 
-  private async llmLoop(run: Run): Promise<string> {
+  /** What any inference needs to know: persona, room, devices and memories. */
+  private async promptSections(run: Run, exposed: ExposedTool[], recallText: string) {
     const { agent } = await this.settings.get();
-    const { model, params } = await this.resolveModel(run);
-    run.model = model;
-    await this.conversations.updateRequest(run.requestId, { model });
-
     const room = await this.rooms.describeRoom(run.roomId);
     const persona = await this.personas.resolve(
       run.input.personaId ?? null,
@@ -513,19 +736,6 @@ export class AgentService {
       `Pièce d'origine : ${rendered.variables.room}`,
       `Appareils de la pièce : ${rendered.variables.devices}`,
     ].join('\n');
-
-    const exposed = (await this.routeNeedsTools(run))
-      ? await this.registry.toolsFor(run.roomId)
-      : [];
-    const tools: LlmTool[] = exposed.map((item) => ({
-      name: item.exposedName,
-      description: item.description,
-      parameters: item.tool.inputSchema,
-    }));
-    const native =
-      tools.length > 0 ? await this.ollama.supportsTools(model).catch(() => true) : true;
-
-    const canAct = exposed.some((item) => !item.tool.readOnly);
     const home = await this.homeContext.forPrompt(
       exposed.map((item) => item.tool),
       run.roomId,
@@ -533,21 +743,33 @@ export class AgentService {
       agent.homeContextMaxChars,
       run.signal,
     );
-    const memories = await this.memory.recall(run.input.text, run.roomId, run.signal);
-    const systemPrompt = [
-      params.systemPrompt,
-      rendered.prompt,
-      contextBlock,
-      home,
-      memories.length > 0
-        ? `Ce que tu sais sur cette maison :\n${memories.map((item) => `- ${item}`).join('\n')}`
-        : null,
-      canAct ? ACTION_CLAUSE : null,
-      native ? null : structuredToolPrompt(tools),
-    ]
-      .filter(Boolean)
-      .join('\n\n');
+    const memories = await this.memory.recall(recallText, run.roomId, run.signal);
+    return {
+      persona,
+      sections: [
+        rendered.prompt,
+        contextBlock,
+        home,
+        memories.length > 0
+          ? `Ce que tu sais sur cette maison :\n${memories.map((item) => `- ${item}`).join('\n')}`
+          : null,
+      ],
+    };
+  }
 
+  private async conversationMessages(
+    run: Run,
+    input: {
+      exposed: ExposedTool[];
+      systemPrompt: string;
+      userText: string;
+      numCtx: number;
+      tools: LlmTool[];
+      native: boolean;
+    },
+  ): Promise<LlmMessage[]> {
+    const { exposed, systemPrompt, userText, numCtx, tools, native } = input;
+    const { agent } = await this.settings.get();
     const previous = await this.conversations.recentMessages(
       run.conversationId,
       agent.historyMessages + 1,
@@ -559,19 +781,55 @@ export class AgentService {
     const exposedName = (toolName: string) =>
       exposed.find((item) => item.tool.name === toolName)?.exposedName ?? toolName;
     const history = withToolHistory(past, pastCalls, exposedName);
-    const fitted = fitHistory(
-      history,
-      systemPrompt,
-      run.input.text,
-      params.numCtx ?? DEFAULT_NUM_CTX,
-    );
+    const fitted = fitHistory(history, systemPrompt, userText, numCtx, tools);
     // The window may cut between a call and its result, which models refuse.
     const firstUser = fitted.findIndex((message) => message.role === 'user');
-    const messages: LlmMessage[] = [
+    return [
       { role: 'system', content: systemPrompt },
       ...(firstUser >= 0 ? fitted.slice(firstUser) : []),
-      { role: 'user', content: run.input.text },
+      { role: 'user', content: userText },
     ];
+  }
+
+  private toolMessages(toolCalls: LlmToolCall[], results: string[], native: boolean) {
+    return results.map((result, index): LlmMessage => {
+      const name = toolCalls[index]?.name ?? 'outil';
+      return native
+        ? { role: 'tool', content: result, toolName: name }
+        : { role: 'user', content: `Résultat de l'outil ${name} :\n${result}` };
+    });
+  }
+
+  private async llmLoop(run: Run): Promise<string> {
+    const { agent } = await this.settings.get();
+    const { model, params } = await this.resolveModel(run);
+    run.model = model;
+    await this.conversations.updateRequest(run.requestId, { model });
+
+    const available = await this.registry.toolsFor(run.roomId);
+    const exposed = (await this.routeNeedsTools(run, available)) ? available : [];
+    const tools = exposed.map(toLlmTool);
+    const native =
+      tools.length > 0 ? await this.ollama.supportsTools(model).catch(() => true) : true;
+
+    const canAct = exposed.some((item) => !item.tool.readOnly);
+    const { persona, sections } = await this.promptSections(run, exposed, run.input.text);
+    const systemPrompt = [
+      params.systemPrompt,
+      ...sections,
+      canAct ? ACTION_CLAUSE : null,
+      native ? null : structuredToolPrompt(tools),
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+    const messages = await this.conversationMessages(run, {
+      exposed,
+      systemPrompt,
+      userText: run.input.text,
+      numCtx: params.numCtx ?? DEFAULT_NUM_CTX,
+      tools: native ? tools : [],
+      native,
+    });
     await this.conversations.updateRequest(run.requestId, {
       personaName: persona.name,
       prompt: { messages, tools },
@@ -615,14 +873,7 @@ export class AgentService {
       const results = await Promise.all(
         toolCalls.map((call) => this.runToolCall(run, call, exposed, agent.toolResultMaxChars)),
       );
-      messages.push(
-        ...results.map((result, index): LlmMessage => {
-          const name = toolCalls[index]?.name ?? 'outil';
-          return native
-            ? { role: 'tool', content: result, toolName: name }
-            : { role: 'user', content: `Résultat de l'outil ${name} :\n${result}` };
-        }),
-      );
+      messages.push(...this.toolMessages(toolCalls, results, native));
     }
     throw new AppError('max_iterations', "Nombre maximal d'itérations atteint", 508);
   }

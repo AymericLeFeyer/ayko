@@ -1,0 +1,1 @@
+ALTER TABLE `request_cache_entries` ADD `origin` text DEFAULT 'learned' NOT NULL;

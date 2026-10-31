@@ -7,6 +7,7 @@ import type {
   PersonaFields,
   RoomConfig,
   ToolPolicy,
+  Trace,
   VoiceProviderConfig,
 } from '@ayko/contracts';
 
@@ -295,6 +296,20 @@ export const memories = sqliteTable(
   (table) => [index('memories_alias_idx').on(table.aliasKey)],
 );
 
+/** No foreign keys: a report outlives its tablet, its room and the purged traces. */
+export const reports = sqliteTable(
+  'reports',
+  {
+    id: text('id').primaryKey(),
+    deviceId: text('device_id').notNull(),
+    deviceName: text('device_name').notNull(),
+    roomName: text('room_name'),
+    traces: json<Trace[]>('traces').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [index('reports_created_idx').on(table.createdAt)],
+);
+
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
   value: json<unknown>('value').notNull(),
@@ -375,6 +390,7 @@ export const requestCacheEntries = sqliteTable(
     status: text('status')
       .$type<'active' | 'pinned' | 'excluded' | 'doubtful' | 'invalidated'>()
       .notNull(),
+    origin: text('origin').$type<'learned' | 'manual'>().notNull().default('learned'),
     hits: integer('hits').notNull(),
     failures: integer('failures').notNull(),
     occurrences: integer('occurrences').notNull(),

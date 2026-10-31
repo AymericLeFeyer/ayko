@@ -24,4 +24,6 @@ export const coreApi = {
   config: (token: string) =>
     call<{ deviceId: string; room: Room | null }>('/device/config', bearer(token)),
   widgets: (token: string) => call<WidgetData>('/device/widgets', bearer(token)),
+  report: (token: string) =>
+    call<{ id: string }>('/device/reports', { method: 'POST', ...bearer(token) }),
 };

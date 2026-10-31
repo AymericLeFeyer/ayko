@@ -14,9 +14,14 @@ export function fitHistory(
   systemPrompt: string,
   userText: string,
   numCtx: number,
+  /** Tool schemas travel with every request and grow with each MCP server. */
+  tools: unknown[] = [],
 ): LlmMessage[] {
   const budget =
-    numCtx * (1 - RESPONSE_RESERVE_RATIO) - estimateTokens(systemPrompt) - estimateTokens(userText);
+    numCtx * (1 - RESPONSE_RESERVE_RATIO) -
+    estimateTokens(systemPrompt) -
+    estimateTokens(userText) -
+    estimateTokens(tools.length > 0 ? JSON.stringify(tools) : '');
   const kept: LlmMessage[] = [];
   let used = 0;
   for (let index = history.length - 1; index >= 0; index -= 1) {

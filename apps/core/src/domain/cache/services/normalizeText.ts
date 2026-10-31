@@ -81,6 +81,19 @@ export function isActionRequest(text: string): boolean {
   return !tokens.includes('etre') && tokens.some((token) => ACTION_VERBS.has(token));
 }
 
+const commandKey = (normalized: string) =>
+  normalized
+    .split(' ')
+    .filter((token) => /\d/.test(token) || ACTION_VERBS.has(token))
+    .join(' ');
+
+/**
+ * Embeddings rate "sur 18" and "sur 20", or "allume" and "éteins", as nearly identical: two
+ * phrases are interchangeable only if their numbers and action verbs are the same.
+ */
+export const sameCommand = (normalizedA: string, normalizedB: string): boolean =>
+  commandKey(normalizedA) === commandKey(normalizedB);
+
 /** Context-dependent or open requests are never cached (spec 4.9). */
 export function isCacheableText(text: string): boolean {
   if (AMBIGUOUS[0]?.test(text)) return false;

@@ -22,6 +22,36 @@ const run = (...actions: SessionAction[]) =>
 const sent: SessionAction = { type: 'send', id: 'one', text: 'Bonjour' };
 
 describe('sessionReducer', () => {
+  it('sends blocks into orbit, replacing the card of the same device', () => {
+    const entity = (name: string, state: string) =>
+      frame({
+        type: 'answer.blocks',
+        payload: { requestId, blocks: [{ type: 'entity', name, state }] },
+      });
+    const session = run(sent, entity('Salon', 'Allumé'), entity('Salon', 'Éteint'));
+    expect(session.satellites).toMatchObject([
+      { id: 1, slot: 1, block: { name: 'Salon', state: 'Éteint' } },
+    ]);
+  });
+
+  it('keeps three satellites, each staying in its slot', () => {
+    const block = (text: string) =>
+      frame({ type: 'answer.blocks', payload: { requestId, blocks: [{ type: 'text', text }] } });
+    const session = run(sent, block('a'), block('b'), block('c'), block('d'));
+    expect(session.satellites.map(({ slot }) => slot)).toEqual([1, 2, 0]);
+  });
+
+  it('keeps only the last three exchanges on screen', () => {
+    const session = run(
+      ...['a', 'b', 'c', 'd'].map((id): SessionAction => ({
+        type: 'send',
+        id,
+        text: `Question ${id}`,
+      })),
+    );
+    expect(session.exchanges.map((exchange) => exchange.id)).toEqual(['b', 'c', 'd']);
+  });
+
   it('streams an answer into the current exchange', () => {
     const session = run(
       sent,

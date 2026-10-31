@@ -4,6 +4,10 @@ import { isoDate, uuid } from './common.js';
 export const cacheStatus = z.enum(['active', 'pinned', 'excluded', 'doubtful', 'invalidated']);
 export type CacheStatus = z.infer<typeof cacheStatus>;
 
+/** `manual`: dictated to Ayko. `learned`: picked up after a successful LLM run. */
+export const cacheOrigin = z.enum(['learned', 'manual']);
+export type CacheOrigin = z.infer<typeof cacheOrigin>;
+
 export const cachedCall = z.object({
   toolId: uuid,
   serverId: uuid,
@@ -24,6 +28,7 @@ export const cacheEntry = z.object({
   response: z.string(),
   aliases: z.array(z.string()),
   status: cacheStatus,
+  origin: cacheOrigin,
   hits: z.number().int(),
   failures: z.number().int(),
   occurrences: z.number().int(),

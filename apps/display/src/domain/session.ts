@@ -18,10 +18,16 @@ export interface Exchange {
   id: string;
   question: string;
   answer: string;
-  blocks: Block[];
   steps: Step[];
   error: string | null;
   pending: boolean;
+}
+
+/** A response element around the orb; its slot never changes while it stays on screen. */
+export interface Satellite {
+  id: number;
+  slot: number;
+  block: Block;
 }
 
 export interface PendingConfirm {
@@ -33,6 +39,9 @@ export interface PendingConfirm {
 export interface Session {
   screen: ScreenState;
   exchanges: Exchange[];
+  satellites: Satellite[];
+  /** Satellites launched so far: gives each one its id and its slot. */
+  launched: number;
   confirm: PendingConfirm | null;
   connected: boolean;
   requestId: string | null;
@@ -55,6 +64,8 @@ export type SessionAction =
 export const initialSession: Session = {
   screen: 'idle',
   exchanges: [],
+  satellites: [],
+  launched: 0,
   confirm: null,
   connected: false,
   requestId: null,
@@ -63,6 +74,8 @@ export const initialSession: Session = {
 };
 
 const CONNECTION_LOST = 'La connexion a été coupée avant la fin de la réponse.';
+const VISIBLE_EXCHANGES = 3;
+const SATELLITE_SLOTS = 3;
 
 const patchLast = (session: Session, update: (exchange: Exchange) => Exchange): Session => ({
   ...session,
@@ -70,6 +83,22 @@ const patchLast = (session: Session, update: (exchange: Exchange) => Exchange): 
     index === session.exchanges.length - 1 ? update(exchange) : exchange,
   ),
 });
+
+const entityName = ({ type, name }: Block) => (type === 'entity' ? name : undefined);
+
+/** A new state of the same device replaces its card; otherwise the oldest card leaves. */
+function launch(session: Session, blocks: Block[]): Session {
+  let { satellites, launched } = session;
+  for (const block of blocks) {
+    const name = entityName(block);
+    satellites = [
+      ...satellites.filter((item) => !name || entityName(item.block) !== name),
+      { id: launched, slot: launched % SATELLITE_SLOTS, block },
+    ].slice(-SATELLITE_SLOTS);
+    launched += 1;
+  }
+  return { ...session, satellites, launched };
+}
 
 function applyFrame(session: Session, frame: DisplayServerMessage): Session {
   switch (frame.type) {
@@ -98,10 +127,7 @@ function applyFrame(session: Session, frame: DisplayServerMessage): Session {
         answer: exchange.answer + frame.payload.text,
       }));
     case 'answer.blocks':
-      return patchLast(session, (exchange) => ({
-        ...exchange,
-        blocks: [...exchange.blocks, ...frame.payload.blocks],
-      }));
+      return launch(session, frame.payload.blocks);
     case 'answer.done':
       return {
         ...patchLast(session, (exchange) => ({ ...exchange, pending: false })),
@@ -140,12 +166,11 @@ export function sessionReducer(session: Session, action: SessionAction): Session
             id: action.id,
             question: action.text,
             answer: '',
-            blocks: [],
             steps: [],
             error: null,
             pending: true,
           },
-        ],
+        ].slice(-VISIBLE_EXCHANGES),
       };
     case 'frame':
       return applyFrame(session, action.frame);

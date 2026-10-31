@@ -1,7 +1,8 @@
-import { ArrowDown, Mic, Send, X } from 'lucide-react';
+import { ArrowDown, Flag, Mic, Send, X } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import type { Block, HouseActivity, RoomConfig, ScreenState } from '@ayko/contracts';
-import type { Exchange, PendingConfirm, Step } from '@/domain/session';
+import type { ReportState } from '@/application/useConversation';
+import type { Exchange, PendingConfirm, Satellite, Step } from '@/domain/session';
 import { BlockView } from './blocks/registry';
 import { Markdown } from './Markdown';
 import { Orb } from './Orb';
@@ -69,43 +70,32 @@ export function HomeScreen(props: {
   );
 }
 
-function ActivityPanel({ steps, pending }: { steps: Step[]; pending: boolean }) {
-  // Open while Ayko works, then folded so the answer gets the room.
-  const [choice, setChoice] = useState<boolean | null>(null);
-  const open = choice ?? pending;
-  const setOpen = setChoice;
+function ActivityLog({ steps }: { steps: Step[] }) {
   if (steps.length === 0) return null;
   return (
-    <section className="activity">
-      <button className="activity-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
-        Ce qu'Ayko fait
-      </button>
-      {open && (
-        <ol>
-          {steps.map((step) => (
-            <li key={step.stepId} className={`step step-${step.status}`}>
-              <span className="step-dot" />
-              {step.label}
-              {step.durationMs !== undefined && <small>{Math.round(step.durationMs)} ms</small>}
-            </li>
-          ))}
-        </ol>
-      )}
-    </section>
+    <ol className="log" aria-label="Ce qu'Ayko fait">
+      {steps.slice(-VISIBLE_STEPS).map((step) => (
+        <li key={step.stepId} className={`step step-${step.status}`}>
+          <span className="step-dot" />
+          {step.label}
+          {step.durationMs !== undefined && <small>{Math.round(step.durationMs)} ms</small>}
+        </li>
+      ))}
+    </ol>
   );
 }
 
 function ExchangeView({ exchange }: { exchange: Exchange }) {
   return (
     <article className="exchange">
-      <p className="question">{exchange.question}</p>
-      <ActivityPanel steps={exchange.steps} pending={exchange.pending} />
-      {exchange.answer && <Markdown text={exchange.answer} />}
-      {exchange.blocks.map((block, index) => (
-        <BlockView key={index} block={block} />
-      ))}
+      <p className="message message-user">{exchange.question}</p>
+      {exchange.answer && (
+        <div className="message message-ayko">
+          <Markdown text={exchange.answer} />
+        </div>
+      )}
       {exchange.error && (
-        <p role="alert" className="exchange-error">
+        <p role="alert" className="message exchange-error">
           {exchange.error}
         </p>
       )}
@@ -113,6 +103,7 @@ function ExchangeView({ exchange }: { exchange: Exchange }) {
   );
 }
 
+const VISIBLE_STEPS = 3;
 const END_MARGIN_PX = 80;
 const ACTIVITY_THROTTLE_MS = 1000;
 
@@ -125,10 +116,18 @@ const STATUS_LABEL: Record<ScreenState, string> = {
   error: 'Un problème est survenu',
 };
 
+const REPORT_LABEL: Record<ReportState, string> = {
+  idle: 'Signaler',
+  saving: 'Envoi…',
+  saved: 'Signalé',
+  failed: 'Échec, réessayer',
+};
+
 export function ConversationScreen(props: {
   state: ScreenState;
   keystrokes: number;
   exchanges: Exchange[];
+  satellites: Satellite[];
   busy: boolean;
   suggestions: string[];
   onSend: (text: string) => boolean;
@@ -136,8 +135,10 @@ export function ConversationScreen(props: {
   onActivity: () => void;
   onCancel: () => void;
   onHome: () => void;
+  reportState: ReportState;
+  onReport: () => void;
 }) {
-  const { exchanges, busy, onSend } = props;
+  const { exchanges, busy, onSend, reportState } = props;
   const [text, setText] = useState('');
   const list = useRef<HTMLDivElement>(null);
   const following = useRef(true);
@@ -183,76 +184,97 @@ export function ConversationScreen(props: {
 
   return (
     <div className="conversation">
-      <aside className="conversation-orb">
-        <Orb state={props.state} pulse={props.keystrokes} size="min(30vh, 24vw)" />
+      <div className="stage">
+        <div className="stage-actions">
+          <button className="button button-ghost" onClick={props.onHome}>
+            Accueil
+          </button>
+          <button
+            className="button button-ghost button-report"
+            disabled={reportState === 'saving' || reportState === 'saved'}
+            onClick={props.onReport}
+          >
+            <Flag /> {REPORT_LABEL[reportState]}
+          </button>
+        </div>
+        <div className="orbit-center">
+          <Orb state={props.state} pulse={props.keystrokes} size="var(--orb)" />
+        </div>
+        {props.satellites.map(({ id, slot, block }) => (
+          <div key={id} className="satellite" data-slot={slot}>
+            <div className="satellite-body">
+              <BlockView block={block} />
+            </div>
+          </div>
+        ))}
+        <div className="thread">
+          <div ref={list} className="exchanges" onScroll={onScroll}>
+            {exchanges.length === 0 && (
+              <div className="suggestions">
+                {props.suggestions.map((suggestion) => (
+                  <button key={suggestion} className="chip" onClick={() => onSend(suggestion)}>
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            )}
+            {exchanges.map((exchange) => (
+              <ExchangeView key={exchange.id} exchange={exchange} />
+            ))}
+          </div>
+          {!atEnd && (
+            <button className="button jump-to-end" onClick={jumpToEnd}>
+              <ArrowDown /> Aller à la fin
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="logs">
         <p className="status" role="status">
           {STATUS_LABEL[props.state]}
         </p>
-        <button className="button button-ghost" onClick={props.onHome}>
-          Accueil
+        <ActivityLog steps={exchanges.at(-1)?.steps ?? []} />
+      </div>
+      <form className="composer" onSubmit={submit}>
+        <button
+          type="button"
+          className="icon-button"
+          disabled
+          aria-label="Voix bientôt disponible"
+          title="Voix bientôt disponible"
+        >
+          <Mic />
         </button>
-      </aside>
-      <main className="conversation-main">
-        <div ref={list} className="exchanges" onScroll={onScroll}>
-          {exchanges.length === 0 && (
-            <div className="suggestions">
-              {props.suggestions.map((suggestion) => (
-                <button key={suggestion} className="chip" onClick={() => onSend(suggestion)}>
-                  {suggestion}
-                </button>
-              ))}
-            </div>
-          )}
-          {exchanges.map((exchange) => (
-            <ExchangeView key={exchange.id} exchange={exchange} />
-          ))}
-        </div>
-        {!atEnd && (
-          <button className="button jump-to-end" onClick={jumpToEnd}>
-            <ArrowDown /> Aller à la fin
-          </button>
-        )}
-        <form className="composer" onSubmit={submit}>
+        <input
+          aria-label="Votre message"
+          placeholder="Écrivez à Ayko"
+          autoComplete="off"
+          value={text}
+          onChange={(event) => {
+            setText(event.target.value);
+            props.onTyping();
+          }}
+        />
+        {busy ? (
           <button
             type="button"
             className="icon-button"
-            disabled
-            aria-label="Voix bientôt disponible"
-            title="Voix bientôt disponible"
+            aria-label="Annuler la requête"
+            onClick={props.onCancel}
           >
-            <Mic />
+            <X />
           </button>
-          <input
-            aria-label="Votre message"
-            placeholder="Écrivez à Ayko"
-            autoComplete="off"
-            value={text}
-            onChange={(event) => {
-              setText(event.target.value);
-              props.onTyping();
-            }}
-          />
-          {busy ? (
-            <button
-              type="button"
-              className="icon-button"
-              aria-label="Annuler la requête"
-              onClick={props.onCancel}
-            >
-              <X />
-            </button>
-          ) : (
-            <button
-              type="submit"
-              className="icon-button icon-button-primary"
-              aria-label="Envoyer"
-              disabled={!text.trim()}
-            >
-              <Send />
-            </button>
-          )}
-        </form>
-      </main>
+        ) : (
+          <button
+            type="submit"
+            className="icon-button icon-button-primary"
+            aria-label="Envoyer"
+            disabled={!text.trim()}
+          >
+            <Send />
+          </button>
+        )}
+      </form>
     </div>
   );
 }

@@ -245,6 +245,7 @@ function Entries() {
                     <Badge variant={entry.status === 'doubtful' ? 'destructive' : 'secondary'}>
                       {STATUS[entry.status]}
                     </Badge>
+                    {entry.origin === 'manual' && <Badge>Manuel</Badge>}
                     {entry.inTopN && <Badge variant="outline">En mémoire</Badge>}
                   </TableCell>
                   <TableCell>{entry.hits}</TableCell>

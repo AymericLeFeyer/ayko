@@ -162,3 +162,13 @@ export const trace = z.object({
   toolCalls: z.array(traceToolCall),
 });
 export type Trace = z.infer<typeof trace>;
+
+/** Frozen copy of a tablet's last exchanges, kept after their traces are purged. */
+export const report = z.object({
+  id: uuid,
+  deviceName: z.string(),
+  roomName: z.string().nullable(),
+  traces: z.array(trace),
+  createdAt: isoDate,
+});
+export type Report = z.infer<typeof report>;

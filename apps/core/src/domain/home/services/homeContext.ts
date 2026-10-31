@@ -48,6 +48,32 @@ const sameName = (left: string | null, right: string | null) =>
   right !== null &&
   stripAccents(left.toLowerCase()) === stripAccents(right.toLowerCase());
 
+/** Home Assistant targets devices through `name` and `area`: returns the first invented one. */
+export function unknownTarget(args: Record<string, unknown>, devices: HomeDevice[]): string | null {
+  const known = (value: string, candidates: (string | null)[]) =>
+    candidates.some((candidate) => sameName(value, candidate));
+  const { name, area } = args;
+  if (
+    typeof name === 'string' &&
+    !known(
+      name,
+      devices.flatMap((device) => device.names),
+    )
+  ) {
+    return name;
+  }
+  if (
+    typeof area === 'string' &&
+    !known(
+      area,
+      devices.map((device) => device.area),
+    )
+  ) {
+    return area;
+  }
+  return null;
+}
+
 const describe = (device: HomeDevice) =>
   `- ${device.names.join(', ')} (${device.domain})${device.state ? ` : ${device.state}` : ''}`;
 
