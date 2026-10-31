@@ -8,7 +8,7 @@ import {
 } from '../../domain/cache/services/shortcutCommand.js';
 import { fitHistory } from '../../domain/conversation/services/contextWindow.js';
 import { capabilitiesOf, routingPrompt } from '../../domain/conversation/services/routingPrompt.js';
-import { withToolHistory } from '../../domain/conversation/services/toolHistory.js';
+import { cutResult, withToolHistory } from '../../domain/conversation/services/toolHistory.js';
 import { unknownTarget } from '../../domain/home/services/homeContext.js';
 import { argumentProblem } from '../../domain/mcp/services/toolArguments.js';
 import { isContextTool, isNeverCached } from '../../domain/mcp/services/toolPolicy.js';
@@ -61,7 +61,9 @@ export interface AgentInput {
 const DEFAULT_NUM_CTX = 8192;
 const ACTION_CLAUSE =
   "Pour agir, tu dois appeler l'outil correspondant. Lire une information ne change rien. " +
-  "N'annonce jamais qu'une action est faite sans le résultat de son outil.";
+  "N'annonce jamais qu'une action est faite sans le résultat de son outil. " +
+  "Chaque chiffre, titre ou date que tu donnes vient d'un résultat d'outil : sinon, dis que tu ne sais pas.";
+const ANSWER_CUT = '\n\n(Réponse coupée : le contexte du modèle est plein.)';
 const ACTION_REMINDER =
   "[Rappel] Tu n'as appelé aucun outil d'action, donc rien n'a été fait. Appelle maintenant " +
   "l'outil qui exécute la demande, ou explique pourquoi c'est impossible.";
@@ -1012,7 +1014,7 @@ export class AgentService {
       return `Outil inconnu : ${call.name}`;
     }
     const result = await this.executeTool(run, match.tool, call.arguments, 'llm');
-    return result.text.slice(0, maxChars);
+    return cutResult(result.text, maxChars);
   }
 
   private async streamTurn(
@@ -1046,6 +1048,7 @@ export class AgentService {
     )) {
       if (chunk.type === 'text') {
         if (run.ttftMs === null) {
+    let truncated = false;
           run.ttftMs = performance.now() - started;
           run.emit({ type: 'state.changed', requestId: run.requestId, state: 'answering' });
         }
@@ -1077,8 +1080,15 @@ export class AgentService {
       run.emit({ type: 'answer.delta', requestId: run.requestId, text: answer });
     }
     const tokensPerSecond =
+        truncated ||= chunk.truncated === true;
       run.evalDurationMs > 0 && run.outputTokens > 0
         ? (run.outputTokens * 1000) / run.evalDurationMs
+    if (truncated && toolCalls.length === 0) {
+      const cut = await this.startStep(run, 'error', 'Réponse coupée par une limite du modèle');
+      await cut.finish('error');
+      text += ANSWER_CUT;
+      if (!request.holdText) flush(text.length);
+    }
         : null;
     await this.conversations.addMessage({
       id: randomUUID(),

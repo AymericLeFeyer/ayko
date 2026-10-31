@@ -75,6 +75,13 @@ describe('tool history', () => {
     expect(history[1]?.toolCalls?.[0]?.arguments).toEqual({ name: 'light_desktop_lightstrip' });
   });
 
+  it('tells the model when a replayed result was cut', () => {
+    const replay = (result: string) =>
+      withToolHistory(messages, [{ ...calls[0]!, result }], (name) => name)[2]?.content;
+    expect(replay('x'.repeat(1500))).toBe('x'.repeat(1500));
+    expect(replay('x'.repeat(1501))).toContain('rappelle l');
+  });
+
   it('counts tool calls in the context budget', () => {
     const big = 'x'.repeat(3000);
     const history = [

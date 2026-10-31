@@ -2,7 +2,9 @@ import type { ToolPolicy } from '@ayko/contracts';
 
 const SENSITIVE = /lock|alarm|(?:^|[_-])(?:dis)?arm|door|garage|gate|cover|serrure|porte|portail/i;
 const READ_ONLY = /^(get|list|read|search|fetch|query|find|show|describe)[_-]?/i;
-const NEVER_CACHED = /search|recherche|web|browse|scrape|fetch_url|news/i;
+// Comments and publications are records picked in the conversation: replaying the stored id
+// on "ignore-le" would act on the previous one.
+const NEVER_CACHED = /search|recherche|web|browse|scrape|fetch_url|news|comment|publication/i;
 
 /** Sensitive tools start in `confirm`: opting out of a safeguard is an explicit admin choice. */
 export const defaultPolicy = (toolName: string): ToolPolicy =>

@@ -37,7 +37,13 @@ export type LlmChunk =
   | { type: 'text'; text: string }
   | { type: 'thinking'; text: string }
   | { type: 'tool_call'; call: LlmToolCall }
-  | { type: 'done'; outputTokens: number | null; evalDurationMs: number | null };
+  | {
+      type: 'done';
+      outputTokens: number | null;
+      evalDurationMs: number | null;
+      /** The model stopped on a limit (window or `maxTokens`), not because it had finished. */
+      truncated?: boolean;
+    };
 
 /** Everything Core needs from a model runtime; Ollama is only one implementation. */
 export interface LlmProvider {

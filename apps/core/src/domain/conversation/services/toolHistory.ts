@@ -10,7 +10,12 @@ export interface PastToolCall {
 }
 
 const RECENT_REQUESTS = 3;
-const RESULT_MAX_CHARS = 400;
+const RESULT_MAX_CHARS = 1500;
+const CUT_NOTICE = "\n[Résultat coupé : rappelle l'outil pour lire la suite, n'invente rien.]";
+
+/** A cut must show: a model that believes it has everything fills the gap by inventing. */
+export const cutResult = (result: string, maxChars: number) =>
+  result.length > maxChars ? result.slice(0, maxChars) + CUT_NOTICE : result;
 
 /**
  * Rebuilds history with what the tools answered. Without it the model loses each turn
@@ -42,7 +47,7 @@ export function withToolHistory(
         history.push({
           role: 'tool',
           toolName: exposedName(call.toolName),
-          content: (call.result ?? '').slice(0, RESULT_MAX_CHARS),
+          content: cutResult(call.result ?? '', RESULT_MAX_CHARS),
         });
       }
     }

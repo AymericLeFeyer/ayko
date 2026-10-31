@@ -32,6 +32,7 @@ interface OllamaChatLine {
     tool_calls?: { function: { name: string; arguments: Record<string, unknown> } }[];
   };
   done?: boolean;
+  done_reason?: string;
   eval_count?: number;
   eval_duration?: number;
   error?: string;
@@ -245,6 +246,7 @@ export class OllamaProvider implements LlmProvider {
           type: 'done',
           outputTokens: line.eval_count ?? null,
           evalDurationMs: line.eval_duration != null ? line.eval_duration / 1e6 : null,
+          truncated: line.done_reason === 'length',
         };
       }
     }

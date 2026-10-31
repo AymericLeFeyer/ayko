@@ -11,6 +11,8 @@ describe('isActionRequest', () => {
     'Illumine Kayo',
     'ferme-le',
     'Tu peux ouvrir le volet ?',
+    'Ignore le',
+    'Archive Teaser Ayko 1',
   ])('sees an action in %s', (text) => expect(isActionRequest(text)).toBe(true));
 
   it.each([
@@ -19,6 +21,8 @@ describe('isActionRequest', () => {
     'Comment allumer la lampe ?',
     'Liste moi les entités',
     'Bonjour',
+    "est-ce que j'ai des commentaires à ignorer",
+    'Quelles publications archiver ?',
   ])('sees no action in %s', (text) => expect(isActionRequest(text)).toBe(false));
 });
 
